@@ -7,7 +7,7 @@ import cv2
 import math
 import pickle
 import scipy.ndimage as ndi
-from structural_sim_from_scratch import (setup, generate_weights, correlate1d_x_r, correlate1d_y_r, run_math, normalize_diff, correlate1d_x, correlate1d_y)
+from structural_sim_from_scratch import (setup, generate_weights, correlate1d_x_r, correlate1d_y_r, run_math, fast_run_math, normalize_diff, correlate1d_x, correlate1d_y)
 from skimage.metrics import structural_similarity
 
 
@@ -88,7 +88,6 @@ def convert_to_contours(cell_filename):
     cell_contours = [[] for i in range(len(centers))]
     cell_centers = [[] for j in range(num_rows)]
 
-    print(reorg_centers)
     shape_of_rows = []
 
     for row in range(num_rows):
@@ -106,7 +105,7 @@ def get_contour_mask(cell_contours, frame_width, frame_height):
     contour_mask = np.zeros((frame_height, frame_width, 3))
 
     for c in cell_contours:
-        print(c)
+        #print(c)
         contour_mask = cv2.drawContours(contour_mask, [c],
                                         -1, (255, 255, 255), thickness=cv2.FILLED)
 
@@ -171,6 +170,7 @@ def run_correlate_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp,
     update_corr_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, uxy, size1, size2, width, height)
 
     S = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
+    S = fast_run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
 
     S = S.transpose()
     diff_s = normalize_diff(S, width, height)
@@ -191,8 +191,9 @@ def run_mode_rearr_y(mode_img, uy_tmp, uy, uyy_tmp, uyy, size1, size2, width, he
     rearr = np.concatenate((mode_img[0:size1][::-1], mode_img, mode_img[-size2:][::-1]))
     correlate1d_x_r(rearr, np_weights, uy_tmp, width, height)
 
-    #rearr = np.concatenate((uy_tmp[:, 0:size1][:, ::-1], uy_tmp, uy_tmp[:, -size2:][:, ::-1]), axis=1) # something in the construction of this is wrong but I can't figure out what
-    correlate1d_y_r(uy_tmp, np_weights, width, height, uy)
+    T = uy_tmp.transpose()
+    rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+    correlate1d_y_r(rearr, np_weights, width, height, uy)
 
 #    print("1")
 #    checker(uy_tmp, uy.transpose(), width, height)
@@ -202,8 +203,9 @@ def run_mode_rearr_y(mode_img, uy_tmp, uy, uyy_tmp, uyy, size1, size2, width, he
     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
     correlate1d_x_r(rearr, np_weights, uyy_tmp, width, height)
 
-    #rearr = np.concatenate((uyy_tmp[:, 0:size1][:, ::-1], uyy_tmp, uyy_tmp[:, -size2:][:, ::-1]), axis=1) # something in the construction of this is wrong but I can't figure out what
-    correlate1d_y_r(uyy_tmp, np_weights, width, height, uyy)
+    T = uyy_tmp.transpose()
+    rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+    correlate1d_y_r(rearr, np_weights, width, height, uyy)
     #checker(uyy.transpose(), comp_uy, width, height)
 #    print('2')
 #    checker(uyy_tmp, uyy.transpose(), width, height)
@@ -213,8 +215,9 @@ def update_corr_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, u
     rearr = np.concatenate((curr_img[0:size1][::-1], curr_img, curr_img[-size2:][::-1]))
     correlate1d_x_r(rearr, np_weights, ux_tmp, width, height)
 
-    #rearr = np.concatenate((ux_tmp[:, 0:size1][:, ::-1], ux_tmp, ux_tmp[:, -size2:][:, ::-1]), axis=1) # something in the construction of this is wrong but I can't figure out what
-    correlate1d_y_r(ux_tmp, np_weights, width, height, ux)
+    T = ux_tmp.transpose()
+    rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+    correlate1d_y_r(rearr, np_weights, width, height, ux)
 #    print("3")
 #    checker(ux_tmp, ux.transpose(), width, height)
 
@@ -222,8 +225,9 @@ def update_corr_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, u
     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
     correlate1d_x_r(rearr, np_weights, uxx_tmp, width, height)
 
-    #rearr = np.concatenate((uxx_tmp[:, 0:size1][:, ::-1], uxx_tmp, uxx_tmp[:, -size2:][:, ::-1]), axis=1) # something in the construction of this is wrong but I can't figure out what
-    correlate1d_y_r(uxx_tmp, np_weights, width, height, uxx)
+    T = uxx_tmp.transpose()
+    rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+    correlate1d_y_r(rearr, np_weights, width, height, uxx)
 #    print("4")
 #    checker(uxx_tmp, uxx.transpose(), width, height)
 
@@ -231,8 +235,9 @@ def update_corr_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, u
     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
     correlate1d_x_r(rearr, np_weights, uxy_tmp, width, height)
 
-    #rearr = np.concatenate((uxy_tmp[:, 0:size1][:, ::-1], uxy_tmp, uxy_tmp[:, -size2:][:, ::-1]), axis=1) # something in the construction of this is wrong but I can't figure out what
-    correlate1d_y_r(uxy_tmp, np_weights, width, height, uxy)
+    T = uxy_tmp.transpose()
+    rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+    correlate1d_y_r(rearr, np_weights, width, height, uxy)
 #    print('5')
 #    checker(uxy_tmp, uxy.transpose(), width, height)
 
@@ -303,8 +308,8 @@ def vid_runner(vidcap, mode_img, weights, data_range):
             curr_img, curr_img, mask=contour_mask)
         masked_curr_img = masked_curr_img.astype(np.float64, copy=False)
 
-        run_correlate_rearr(masked_curr_img, masked_mode_noblur_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, uxy, uy_tmp, uy, uyy_tmp, uyy, size1,
-                            size2, width, height, cov_norm, data_range)
+#        run_correlate_rearr(masked_curr_img, masked_mode_noblur_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, uxy, uy_tmp, uy, uyy_tmp, uyy, size1,
+#                            size2, width, height, cov_norm, data_range)
 
 
         diff_s = run_correlate_rearr_y(masked_curr_img, masked_mode_noblur_img, ux_tmp, ux_t, uxx_tmp, uxx_t, uxy_tmp, uxy_t, uy_tmp, uy_t, uyy_tmp, uyy_t, size1,

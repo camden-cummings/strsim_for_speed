@@ -66,6 +66,37 @@ def run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
 
     return (A1 * A2) / (B1 * B2)
 
+@nb.njit(parallel=True, fastmath=True)
+def fastcalc(mat1, mat2, width, height, out):
+    for i in nb.prange(width):
+        for j in range(height):
+            out[i][j] = mat1[i][j] * mat2[i][j]
+
+#@nb.njit(parallel=True, fastmath=True)
+#@nb.guvectorize([(float64[:,:])], "(m,n) -> (m,n)", fastmath=True, nopython=True)
+#def sq(mat):
+#    return mat * mat
+
+@nb.njit(parallel=True, fastmath=True)
+def fast_run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
+    #print(np.max(ux), np.max(uy), np.max(uxx), np.max(uyy), np.max(uxy))
+    ux_squared = np.multiply(ux, ux)
+    #print("max", np.max(ux_squared))
+    uy_squared = np.multiply(uy, uy)
+    ux_uy = np.multiply(ux, uy)
+    vx = np.multiply(cov_norm, (uxx-ux_squared))
+    vxy = np.multiply(cov_norm, (uxy - ux_uy))
+    vy = np.multiply(cov_norm, (uyy - uy_squared))
+
+    C1 = (0.01 * data_range) ** 2
+    C2 = (0.03 * data_range) ** 2
+
+    A1 = np.multiply(ux_uy,2) + C1
+    A2 = np.multiply(vxy,2) + C2
+    B1 = ux_squared + uy_squared + C1
+    B2 = vx + vy + C2
+
+    return (A1 * A2) / (B1 * B2)
 
 @nb.njit(fastmath=True)
 def normalize_diff(diff, width, height):
@@ -76,7 +107,7 @@ def normalize_diff(diff, width, height):
             elif diff[x][y] < 0:
                 diff[x][y] = 0
 
-            diff[x][y] = 255*diff[x][y]
+            diff[x][y] *= 255
 
     diff = diff.astype("uint8")
     return diff
@@ -188,25 +219,30 @@ def correlate1d_x_r(rearr, weights, output, width, height):
 @nb.njit(parallel=True, fastmath=True)
 def correlate1d_x_r(rearr, weights, output, width, height):
     weight_size = len(weights)
-    size1 = math.floor(weight_size / 2)
 
     for start in nb.prange(height):
         end = start+weight_size
         new_arr = rearr[start:end].transpose()
         #print("x",new_arr.shape)
-        output[start] = np.dot(new_arr, weights)
+        np.dot(new_arr, weights, output[start])
+#        output[start] = np.matmul(new_arr, weights)
 
 
 @nb.njit(parallel=True, fastmath=True)
-def correlate1d_y_r(input, weights, width, height, output):
+def correlate1d_y_r(rearr, weights, width, height, output):
     weight_size = len(weights)
     size1 = math.floor(weight_size / 2)
     size2 = weight_size - size1 - 1
 
-    rearr = np.concatenate((input[:, 0:size1][:, ::-1], input, input[:, -size2:][:, ::-1]), axis=1) # something in the construction of this is wrong but I can't figure out what
+    #rearr = np.concatenate((input[:, 0:size1][:, ::-1], input, input[:, -size2:][:, ::-1]), axis=1) # something in the construction of this is wrong but I can't figure out what
 
+
+    #print(rearr, diff_r)
     for start in nb.prange(width):
         end = start+weight_size
-        new_arr = rearr[:, start:end]
-
-        output[start] = np.dot(new_arr, weights)
+        #new_arr = rearr[:, start:end]
+        #print("--")
+        #print(new_arr.shape, diff_r[start:end].shape)
+        #print("--")
+        np.dot(weights, rearr[start:end], output[start])
+#        output[start] = np.matmul(weights, rearr[start:end])

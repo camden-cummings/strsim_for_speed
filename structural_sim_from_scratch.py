@@ -16,7 +16,7 @@ def structural_similarity(
     im2 = im2.astype(np.float64, copy=False)
 
     weights, cov_norm = generate_weights(im1.ndim)
-    ux, uy, uxx, uyy, uxy = setup(im1, im2, weights)
+    ux, uy, uxx, uyy, uxy = setup(im1, im2, weights, 1760, 1200)
 
     return run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
 
@@ -29,12 +29,12 @@ def generate_weights(ndim, sigma=1.5, truncate=3.5):
     weights = ndi._filters._gaussian_kernel1d(sigma, 0, radius)[::-1]
     return weights, cov_norm
 
-def setup(im1, im2, weights):
-    ux = np.zeros((1200, 1760))
-    uy = np.zeros((1200, 1760))
-    uxx = np.zeros((1200, 1760))
-    uyy = np.zeros((1200, 1760))
-    uxy = np.zeros((1200, 1760))
+def setup(im1, im2, weights, frame_width, frame_height):
+    ux = np.zeros((frame_height, frame_width))
+    uy = np.zeros((frame_height, frame_width))
+    uxx = np.zeros((frame_height, frame_width))
+    uyy = np.zeros((frame_height, frame_width))
+    uxy = np.zeros((frame_height, frame_width))
 
     correlate1d(im1, weights, ux)
     correlate1d(im2, weights, uy)
@@ -78,15 +78,16 @@ def vid_runner(vidcap, mode_img, weights, data_range):
         S = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
 
         diff = (S * 255).astype("uint8")
+        cv2.imshow('diff', diff)
         thresh = cv2.threshold(diff, 150, 255, cv2.THRESH_BINARY)[1]
 
-        scipy_contours = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        scipy_contours = scipy_contours[0] if len(scipy_contours) == 2 else scipy_contours[1]
+        #scipy_contours = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        #scipy_contours = scipy_contours[0] if len(scipy_contours) == 2 else scipy_contours[1]
 
-        if len(scipy_contours) > 0:
-            cv2.drawContours(curr_img_store, scipy_contours, -1, (0,255,0), 1)
+        #if len(scipy_contours) > 0:
+        #    cv2.drawContours(curr_img_store, scipy_contours, -1, (0,255,0), 1)
             #cv2.drawContours(curr_img, scipy_contours, -1, (255,0,0),1)
-            cv2.imshow('f', curr_img_store)
+            #cv2.imshow('f', curr_img_store)
         
        # cv2.imshow('f', thresh)
 
@@ -133,8 +134,9 @@ def run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
     return (A1 * A2) / (B1 * B2)
 
 @nb.njit(parallel=True, fastmath=True)
-def correlate1d(input, weights, output=None):
+def correlate1d(input, weights, output=None, axis=0, correct_arr=None):
     height, width = (1200, 1760)
+    #print(input.shape)
     weight_size = len(weights)
     size1 = math.floor(weight_size / 2)
     size2 = weight_size - size1 - 1
@@ -147,29 +149,69 @@ def correlate1d(input, weights, output=None):
         elif all(weights == -weights[::-1]):  # i believe this is ok but don't trust it 100%
             symmetric = -1
     """
+
     symmetric = 1
 
-    for ii in nb.prange(height):
-        np_row = input[ii]
+    if axis == 0:
+        for jj in nb.prange(width):
+            np_row = input[:, jj]
 
-        size1_arr = np_row[0:size1][::-1]
-        size2_arr = np_row[-size2:][::-1]
+            size1_arr = np_row[0:size1][::-1]
+            size2_arr = np_row[-size2:][::-1]
+            new_arr = np.concatenate((size1_arr, np_row, size2_arr))
+            if symmetric > 0:
+                for start in range(height):
+                    n = start+size1
+                    total_neighbour = weights[size1]*new_arr[n]
+                    for x in range(1, size1+1):
+                        total_neighbour += (new_arr[n+x] + new_arr[n-x]) * weights[size1+x]
+                    output[start][jj] = total_neighbour
+    elif axis == 1:
+        for ii in nb.prange(height):
+            np_row = input[ii]
+            size1_arr = np_row[0:size1][::-1]
+            size2_arr = np_row[-size2:][::-1]
+            new_arr = np.concatenate((size1_arr, np_row, size2_arr))
+            if symmetric > 0:
+                for start in range(width):
+                    n = start+size1
+                    total_neighbour = weights[size1]*new_arr[n]
+                    for x in range(1, size1+1):
+                        total_neighbour += (new_arr[n+x] + new_arr[n-x]) * weights[size1+x]
+                    output[ii][start] = total_neighbour
 
-        new_arr = np.concatenate((size1_arr, np_row, size2_arr))
+                    #if correct_arr is not None and abs(correct_arr[ii][start] - output[ii][start]) > 0.2:
+                    #    print(correct_arr[ii][start], output[ii][start])
 
-        if symmetric > 0:
-            for start in range(width):
-                n = start+size1
-                total_neighbour = weights[size1]*new_arr[n]
-                for x in range(1, size1+1):
-                    total_neighbour += (new_arr[n+x] + new_arr[n-x]) * weights[size1+x]
+            elif symmetric < 0:
+                pass
+            else:
+                for start in range(len(new_arr) - size1 - 1):
+                    output[ii][start] = new_arr[start + size1 + 1] * weights[-1]
+                    for i in range(start, start + size1 + 1):
+                        output[ii][start] += new_arr[i] * weights[i - start]
+    """
+    if correct_arr is not None:
+        bool_arr = output[:, :] == correct_arr[:, :]
+        val = len(bool_arr[bool_arr == False])
+        print(val)
+        if val > 0:
+            arr = np.argwhere(bool_arr == False)
 
-                output[ii][start] = total_neighbour
+            for posn in arr:
+                n = correct_arr[posn[0], posn[1]]
+                nd = output[posn[0], posn[1]]
+                if abs(n - nd) > 0.5:
+                    print(n, nd, abs(n - nd))
+    """
 
-        elif symmetric < 0:
-            pass
-        else:
-            for start in range(len(new_arr) - size1 - 1):
-                output[ii][start] = new_arr[start + size1 + 1] * weights[-1]
-                for i in range(start, start + size1 + 1):
-                    output[ii][start] += new_arr[i] * weights[i - start]
+if __name__ == '__main__':
+    fn = "/home/chamomile/Thyme-lab/data/vids/smart-dumb-run-fc2_save_2025-02-06-151144-0000.mp4"
+    vidcap = cv2.VideoCapture(fn)
+    _, mode_img = vidcap.read()
+    mode_img = cv2.cvtColor(mode_img, cv2.COLOR_BGR2GRAY)
+
+    weights = [0.00102838, 0.00759876, 0.03600077, 0.10936069, 0.21300554, 0.26601172,
+               0.21300554, 0.10936069, 0.03600077, 0.00759876, 0.00102838]
+
+    vid_runner(vidcap, mode_img, weights, 255)

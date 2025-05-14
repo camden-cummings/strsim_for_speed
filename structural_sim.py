@@ -20,6 +20,8 @@ import functools
 #from numba import jit
 
 import numbers
+from structural_sim_from_scratch import correlate1d
+from structural_sim_from_scratch import setup, generate_weights
 
 from img_correlation import _ni_support
 
@@ -236,6 +238,8 @@ def gaussian_filter(input, sigma, order=0, output=None,
             for ii in range(num_axes) if sigmas[ii] > 1e-15]
     if len(axes) > 0:
         for axis, sigma, order, mode, radius in axes:
+            #print(axis)
+            #print("input", input)
             gaussian_filter1d(input, sigma, axis, order, output,
                               mode, cval, truncate, radius=radius)
             input = output
@@ -254,7 +258,28 @@ def gaussian_filter1d(input, sigma, axis=-1, order=0, output=None,
         raise ValueError('Radius must be a nonnegative integer.')
     # Since we are calling correlate, not convolve, revert the kernel
     weights = _gaussian_kernel1d(sigma, order, lw)[::-1]
-    return correlate1d(input, weights, axis, output, mode, cval, 0)
+
+    output_ndi = output.copy()
+    #print(output_cp)
+    #print(output_cp.dtype)
+    #print(axis, output_ndi, mode, cval)
+    ndi_corr = ndi.correlate1d(input, weights, axis, output_ndi, mode, cval, 0)
+    #print("NDI", output_ndi)
+    #print(output.dtype)
+    #correlate1d(input, weights, output, axis, ndi_corr)
+    #print("numba", output)
+
+    #bool_arr = np.round(output_ndi[:, :]) == np.round(output[:, :])
+
+    #val = len(bool_arr[bool_arr == False])
+    #print("gaussian", val)
+    #if val > 0:
+    #    arr = np.argwhere(bool_arr == False)
+
+    #    for posn in arr:
+    #        print(posn, input[posn[0], posn[1]], output_ndi[posn[0], posn[1]], output[posn[0], posn[1]])
+
+    return ndi_corr
 
 #@nb.njit(parallel=True, fastmath=True)
 def _gaussian_kernel1d(sigma, order, radius):
@@ -269,7 +294,6 @@ def _gaussian_kernel1d(sigma, order, radius):
     phi_x = np.exp(-0.5 / sigma2 * x ** 2)
     phi_x = phi_x / phi_x.sum()
 
-    print(phi_x)
     if order == 0:
         return phi_x
     else:
@@ -324,7 +348,7 @@ def correlate1d(input, weights, axis=-1, output=None, mode="reflect",
     return output
 """
 
-
+"""
 @nb.njit(parallel=True, fastmath=True)
 def correlate1d(input, weights, axis=-1, output=None, mode="reflect",
                 cval=0.0, origin=0):
@@ -339,14 +363,14 @@ def correlate1d(input, weights, axis=-1, output=None, mode="reflect",
     size1 = math.floor(weight_size / 2)
     size2 = weight_size - size1 - 1
 
-    """
+    """"""
     symmetric = 0
     if weight_size % 2 == 1:  # if the input weight array is even, it will be symmetric = 0, so we don't need to run this calculation
         if all(weights == weights[::-1]):
             symmetric = 1
         elif all(weights == -weights[::-1]):  # i believe this is ok but don't trust it 100%
             symmetric = -1
-    """
+    """"""
     symmetric = 1
     total_neighbour = 0
     for ii in nb.prange(height):
@@ -371,7 +395,7 @@ def correlate1d(input, weights, axis=-1, output=None, mode="reflect",
                 output[ii][start] = new_arr[start + size1 + 1] * weights[-1]
                 for i in range(start, start + size1 + 1):
                     output[ii][start] += new_arr[i] * weights[i - start]
-
+"""
 
 def structural_similarity(
     im1,
@@ -607,6 +631,7 @@ def structural_similarity(
     else:
         cov_norm = 1.0  # population covariance to match Wang et. al. 2004
 
+
     # compute (weighted) means
     ux = filter_func(im1, **filter_args)
     uy = filter_func(im2, **filter_args)
@@ -615,6 +640,26 @@ def structural_similarity(
     uxx = filter_func(im1 * im1, **filter_args)
     uyy = filter_func(im2 * im2, **filter_args)
     uxy = filter_func(im1 * im2, **filter_args)
+
+    """
+    weights = generate_weights(2, sigma=1.5, truncate=3.5)[0].tolist()
+
+    frame_height = 1200
+    frame_width = 1760
+    ux = np.zeros((frame_height, frame_width))
+    uy = np.zeros((frame_height, frame_width))
+    uxx = np.zeros((frame_height, frame_width))
+    uyy = np.zeros((frame_height, frame_width))
+    uxy = np.zeros((frame_height, frame_width))
+    #print(im1)
+    correlate1d(im1, weights, output=ux)
+    correlate1d(im2, weights, output=uy)
+
+    correlate1d(im1 * im1, weights, output=uxx)
+    correlate1d(im2 * im2, weights, output=uyy)
+    correlate1d(im1 * im2, weights, output=uxy)
+    """
+
     vx = cov_norm * (uxx - ux * ux)
     vy = cov_norm * (uyy - uy * uy)
     vxy = cov_norm * (uxy - ux * uy)
@@ -629,6 +674,7 @@ def structural_similarity(
         ux**2 + uy**2 + C1,
         vx + vy + C2,
     )
+
     D = B1 * B2
     S = (A1 * A2) / D
     #print(S)
@@ -757,7 +803,7 @@ def gaussian(
     >>> filtered_img = ski.filters.gaussian(image, sigma=1, channel_axis=-1)
 
 """
-
+    #print(image.dtype)
     if np.any(np.asarray(sigma) < 0.0):
         raise ValueError("Sigma values less than zero are not valid")
     if channel_axis is not None:
@@ -770,9 +816,10 @@ def gaussian(
     image = convert_to_float(image, preserve_range)
     float_dtype = _supported_float_type(image.dtype)
     image = image.astype(float_dtype, copy=False)
+    #print(image.dtype)
     if (out is not None) and (not np.issubdtype(out.dtype, np.floating)):
         raise ValueError(f"dtype of `out` must be float; got {out.dtype!r}.")
-    return ndi.gaussian_filter(
+    return gaussian_filter( # this is where it's breaking
         image, sigma, output=out, mode=mode, cval=cval, truncate=truncate
     )
 

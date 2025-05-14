@@ -7,8 +7,8 @@ from structural_sim_from_scratch import structural_similarity
 #from skimage.metrics import structural_similarity
 import numpy as np
 from scipy import signal
-import cProfile, pstats, io
-from pstats import SortKey
+#import cProfile, pstats, io
+#from pstats import SortKey
 import math
 
 fp = "/home/chamomile/Thyme-lab/data/shortened_vids/6dpf/"
@@ -25,7 +25,7 @@ def fg(curr_img):
     
     return fgmask
 
-@get_stats
+#@get_stats
 def str_sim(curr_img, comp_img, weights):
     diff = structural_similarity(curr_img, comp_img, data_range=255, weights=weights)
     diff = (diff * 255).astype("uint8")
@@ -87,8 +87,8 @@ def run(filename):
     size1 = math.floor(weight_size / 2)
     size2 = weight_size - size1 - 1
 
-    pr = cProfile.Profile()
-    pr.enable()
+    #pr = cProfile.Profile()
+    #pr.enable()
     frame_count = 0
     while frame_count < 30*60 or cont == False:
         #binary_mask = fg(curr_img)
@@ -121,12 +121,12 @@ def run(filename):
         #curr_img[:int(mode_noblur_img.shape[0]/2),:] = 0
         frame_count += 1
 
-    pr.disable()
-    s = io.StringIO()
-    sortby = SortKey.CUMULATIVE
-    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-    ps.print_stats()
-    print(s.getvalue())
+    #pr.disable()
+    #s = io.StringIO()
+    #sortby = SortKey.CUMULATIVE
+    #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+    #ps.print_stats()
+    #print(s.getvalue())
 
 #for filename in files_to_read:
 run(files_to_read[0])

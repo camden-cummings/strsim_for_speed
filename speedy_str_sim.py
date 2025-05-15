@@ -15,7 +15,7 @@ from scipy.ndimage import correlate1d as correlate1d_scipy
 
 #from skimage.metrics import structural_similarity
 from structural_sim import structural_similarity
-from structural_sim_from_scratch import setup, generate_weights, correlate1d
+from structural_sim_from_scratch import setup, generate_weights, correlate1d, run_math
 #from numba import int64, float64
 from scipy import ndimage as ndi
 from numbers import Integral
@@ -48,41 +48,6 @@ def structural_similarity_diff(
     correlate1d(im1 * im2, weights, uxy)
     
     return run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy, )
-
-#@nb.guvectorize([(float64, int64, float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:])], '(),(),(m,n),(m,n),(m,n),(m,n),(m,n)->(m,n)', nopython=True, target='cuda')
-#@nb.njit(parallel=True, fastmath=True)
-def run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
-    K1 = 0.01
-    K2 = 0.03
-
-    ux_squared = ux * ux
-    uy_squared = uy * uy
-    ux_uy = ux * uy
-    vx = cov_norm * (uxx - ux_squared)
-    vy = cov_norm * (uyy - uy_squared)
-    vxy = cov_norm * (uxy - ux_uy)
-
-    R = data_range
-    C1 = (K1 * R) ** 2
-    C2 = (K2 * R) ** 2
-
-
-    A1, A2, B1, B2 = (
-        2 * ux_uy + C1,
-        2 * vxy + C2,
-        ux_squared + uy_squared + C1,
-        vx + vy + C2,
-    )
-
-    S = ((A1 * A2) / (B1 * B2))
-
-#    win_size = 11
-#    pad = (win_size - 1) // 2
-
-#    mssim = crop(S, pad).mean(dtype=np.float64)
-
-    #ret[:][:] = (A1 * A2) / (B1 * B2)
-    return  S
 
 def crop(ar, crop_width, copy=False, order='K'):
     """Crop array `ar` by `crop_width` along each dimension.

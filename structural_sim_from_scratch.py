@@ -36,13 +36,6 @@ def setup(im1, im2, weights, frame_width, frame_height):
     uyy = np.zeros((frame_height, frame_width))
     uxy = np.zeros((frame_height, frame_width))
 
-    correlate1d(im1, weights, ux)
-    correlate1d(im2, weights, uy)
-
-    correlate1d(im1 * im1, weights, uxx)
-    correlate1d(im2 * im2, weights, uyy)
-    correlate1d(im1 * im2, weights, uxy)
-
     return ux, uy, uxx, uyy, uxy
 
 def vid_runner(vidcap, mode_img, weights, data_range):
@@ -154,18 +147,19 @@ def correlate1d(input, weights, output=None, axis=0, correct_arr=None):
 
     if axis == 0:
         for jj in nb.prange(width):
-            np_row = input[:, jj]
-
-            size1_arr = np_row[0:size1][::-1]
-            size2_arr = np_row[-size2:][::-1]
-            new_arr = np.concatenate((size1_arr, np_row, size2_arr))
+            np_row = input[:, jj] # get first column as np arr
             if symmetric > 0:
-                for start in range(height):
-                    n = start+size1
-                    total_neighbour = weights[size1]*new_arr[n]
+                for n in range(height):
+                    total_neighbour = weights[size1]*np_row[n]
                     for x in range(1, size1+1):
-                        total_neighbour += (new_arr[n+x] + new_arr[n-x]) * weights[size1+x]
-                    output[start][jj] = total_neighbour
+                        if n-x < 0:
+                            total_neighbour += (np_row[n+x] + np_row[abs(n - x) - 1]) * weights[size1 + x]
+                        elif n+x >= len(np_row):
+                            total_neighbour += (np_row[2*len(np_row) - x - n - 1] + np_row[n - x]) * weights[size1 + x]
+                        else:
+                            total_neighbour += (np_row[n+x] + np_row[n-x]) * weights[size1+x]
+
+                    output[n][jj] = total_neighbour
     elif axis == 1:
         for ii in nb.prange(height):
             np_row = input[ii]

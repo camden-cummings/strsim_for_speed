@@ -248,6 +248,9 @@ def vid_runner(vidcap, mode_img, weights, data_range):
     cov_norm = NP / (NP - 1)  # sample covariance
 
     ux, uy, uxx, uyy, uxy = setup(curr_img, mode_img, weights, 1760,1200)
+    ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = setup(curr_img, mode_img, weights, 1760, 1200)
+
+    correlate1d(curr_img, weights, ux, 0)  # , curr_scipy)
     S = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
 
     pr = cProfile.Profile()
@@ -259,40 +262,35 @@ def vid_runner(vidcap, mode_img, weights, data_range):
         #print("curr")
 
         #curr_scipy = correlate1d_scipy(curr_img, weights, axis=axis, mode="reflect", cval=0.0)
-        correlate1d(curr_img, weights, ux, 0)#, curr_scipy)
-        tmp = copy.deepcopy(ux)
-        correlate1d(tmp, weights, ux, 1)#, curr_scipy)
+        correlate1d(curr_img, weights, ux_tmp, 0)#, curr_scipy)
+        correlate1d(ux_tmp, weights, ux, 1)#, curr_scipy)
 
         #tester(ux, curr_scipy)
 
         #cv2.imshow("corr", ux)
         #print("mode")
         #mode_scipy = correlate1d_scipy(mode_img, weights, axis=axis, mode="reflect", cval=0.0)
-        correlate1d(mode_img, weights, uy, 0)#, mode_scipy)
-        tmp = copy.deepcopy(uy)
-        correlate1d(tmp, weights, uy, 1)#, mode_scipy)
+        correlate1d(mode_img, weights, uy_tmp, 0)#, mode_scipy)
+        correlate1d(uy_tmp, weights, uy, 1)#, mode_scipy)
 
         #tester(uy, mode_scipy)
 
         #print("cc")
         #cc_scipy = correlate1d_scipy(curr_img*curr_img, weights, axis=axis, mode="reflect", cval=0.0)
-        correlate1d(curr_img * curr_img, weights, uxx, 0)#, cc_scipy)
-        tmp = copy.deepcopy(uxx)
-        correlate1d(tmp, weights, uxx, 1)#, mode_scipy)
+        correlate1d(curr_img * curr_img, weights, uxx_tmp, 0)#, cc_scipy)
+        correlate1d(uxx_tmp, weights, uxx, 1)#, mode_scipy)
         #tester(uxx, cc_scipy)
 
         #print("mm")
         #mm_scipy = correlate1d_scipy(mode_img*mode_img, weights, axis=axis, mode="reflect", cval=0.0)
-        correlate1d(mode_img * mode_img, weights, uyy, 0)#, mm_scipy)
-        tmp = copy.deepcopy(uyy)
-        correlate1d(tmp, weights, uyy, 1)#, mode_scipy)
+        correlate1d(mode_img * mode_img, weights, uyy_tmp, 0)#, mm_scipy)
+        correlate1d(uyy_tmp, weights, uyy, 1)#, mode_scipy)
         #tester(uyy, mm_scipy)
 
         #print("cm")
         #cm_scipy = correlate1d_scipy(curr_img*mode_img, weights, axis=axis, mode="reflect", cval=0.0)
-        correlate1d(curr_img * mode_img, weights, uxy, 0)#, cm_scipy)
-        tmp = copy.deepcopy(uxy)
-        correlate1d(tmp, weights, uxy, 1)#, mode_scipy)
+        correlate1d(curr_img * mode_img, weights, uxy_tmp, 0)#, cm_scipy)
+        correlate1d(uxy_tmp, weights, uxy, 1)#, mode_scipy)
         #tester(uxy, cm_scipy)
 
         S = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
@@ -300,13 +298,13 @@ def vid_runner(vidcap, mode_img, weights, data_range):
         #bool_arr = np.round(ux[:, :]) == np.round(corr_scipy[:, :])
         #print(len(bool_arr[bool_arr == False]))
 
-        _, S_strsim = structural_similarity(curr_img, mode_img, full=True, data_range=data_range, gaussian_weights=True)
+        #_, S_strsim = structural_similarity(curr_img, mode_img, full=True, data_range=data_range, gaussian_weights=True)
 
         diff = (S * 255).astype("uint8")
         cv2.imshow('diff', diff)
-        diff_strsim = (S_strsim * 255).astype("uint8")
+        #diff_strsim = (S_strsim * 255).astype("uint8")
 
-        cv2.imshow('diffstrsim', diff_strsim)
+        #cv2.imshow('diffstrsim', diff_strsim)
 
         #bool_arr = np.round(diff[:, :]) == np.round(diff_strsim[:, :])
         #val = len(bool_arr[bool_arr == False])

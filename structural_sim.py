@@ -12,16 +12,10 @@ from numbers import Integral
 
 from dtype import dtype_range
 from collections.abc import Iterable
-import numba as nb
-import math
-from scipy._lib._util import normalize_axis_index
 from skimage._shared.utils import convert_to_float
-import functools
 #from numba import jit
 
 import numbers
-from structural_sim_from_scratch import correlate1d
-from structural_sim_from_scratch import setup, generate_weights
 
 from img_correlation import _ni_support
 

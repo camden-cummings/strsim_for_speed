@@ -1,11 +1,8 @@
-import os
 #os.environ["OMP_NUM_THREADS"] = "4"
 import numpy as np
 from helpers import find_all_files
 import cv2
-from structural_sim_from_scratch import vid_runner, structural_similarity, setup, run_math, generate_weights, correlate1d
-import cProfile, pstats, io
-from pstats import SortKey
+from structural_sim_from_scratch import vid_runner
 
 np.random.seed(1)
 im1 = np.random.randint(1, 1000, size=(1200,1760), dtype=int)

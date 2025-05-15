@@ -2,11 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import cv2
-from helpers import find_all_files, get_stats
+from helpers import find_all_files
 from structural_sim_from_scratch import structural_similarity
 #from skimage.metrics import structural_similarity
 import numpy as np
-from scipy import signal
 #import cProfile, pstats, io
 #from pstats import SortKey
 import math

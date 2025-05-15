@@ -218,13 +218,15 @@ def vid_runner(vidcap, mode_img, weights, data_range):
     correlate1d(curr_img, weights, ux, 0)  # , curr_scipy)
     S = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
 
-    pr = cProfile.Profile()
-    pr.enable()
+
 
     frame_count = 0
     while cont and frame_count < 100:
         axis = 0
         #print("curr")
+
+        pr = cProfile.Profile()
+        pr.enable()
 
         #curr_scipy = correlate1d_scipy(curr_img, weights, axis=axis, mode="reflect", cval=0.0)
         correlate1d(curr_img, weights, ux_tmp, 0)#, curr_scipy)
@@ -291,12 +293,12 @@ def vid_runner(vidcap, mode_img, weights, data_range):
 
         frame_count += 1
 
-    pr.disable()
-    s = io.StringIO()
-    sortby = SortKey.CUMULATIVE
-    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-    ps.print_stats()
-    print(s.getvalue())
+        pr.disable()
+        s = io.StringIO()
+        sortby = SortKey.CUMULATIVE
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print(s.getvalue())
 
 if __name__ == '__main__':
     filename = "/home/chamomile/Thyme-lab/data/shortened_vids/6dpf/_2024-02-27-105322-0000-short.avi"

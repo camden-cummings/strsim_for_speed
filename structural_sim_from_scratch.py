@@ -130,78 +130,50 @@ def run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
 @nb.njit(parallel=True, fastmath=True)
 def correlate1d(input, weights, output=None, axis=0, correct_arr=None):
     height, width = (1200, 1760)
-    #print(input.shape)
     weight_size = len(weights)
     size1 = math.floor(weight_size / 2)
-    #size2 = weight_size - size1 - 1
-
-    """
-    symmetric = 0
-    if weight_size % 2 == 1:  # if the input weight array is even, it will be symmetric = 0, so we don't need to run this calculation
-        if all(weights == weights[::-1]):
-            symmetric = 1
-        elif all(weights == -weights[::-1]):  # i believe this is ok but don't trust it 100%
-            symmetric = -1
-    """
+    size2 = weight_size - size1 - 1
 
     symmetric = 1
 
     if axis == 0:
-        for ii in nb.prange(width):
-            np_row = input[:, ii] # get first column as np arr
-            if symmetric > 0:
-                for n in range(height):
-                    total_neighbour = weights[size1]*np_row[n]
-                    for x in range(1, size1+1):
-                        if n-x < 0:
-                            total_neighbour += (np_row[n+x] + np_row[abs(n - x) - 1]) * weights[size1 + x]
-                        elif n+x >= len(np_row):
-                            total_neighbour += (np_row[2*len(np_row) - x - n - 1] + np_row[n - x]) * weights[size1 + x]
-                        else:
-                            total_neighbour += (np_row[n+x] + np_row[n-x]) * weights[size1+x]
+        for jj in nb.prange(width):
+            np_row = input[:, jj]
 
-                    output[n][ii] = total_neighbour
+            size1_arr = np_row[0:size1][::-1]
+            size2_arr = np_row[-size2:][::-1]
+            new_arr = np.concatenate((size1_arr, np_row, size2_arr))
+            if symmetric > 0:
+                for start in range(height):
+                    n = start+size1
+                    total_neighbour = weights[size1]*new_arr[n]
+                    for x in range(1, size1+1):
+                        total_neighbour += (new_arr[n+x] + new_arr[n-x]) * weights[size1+x]
+                    output[start][jj] = total_neighbour
     elif axis == 1:
-        for jj in nb.prange(height):
-            np_row = input[jj]
-
+        for ii in nb.prange(height):
+            np_row = input[ii]
+            size1_arr = np_row[0:size1][::-1]
+            size2_arr = np_row[-size2:][::-1]
+            new_arr = np.concatenate((size1_arr, np_row, size2_arr))
             if symmetric > 0:
-                for n in range(width):
-                    total_neighbour = weights[size1]*np_row[n]
+                for start in range(width):
+                    n = start+size1
+                    total_neighbour = weights[size1]*new_arr[n]
                     for x in range(1, size1+1):
-                        if n-x < 0:
-                            total_neighbour += (np_row[n+x] + np_row[abs(n - x) - 1]) * weights[size1 + x]
-                        elif n+x >= len(np_row):
-                            total_neighbour += (np_row[2*len(np_row) - x - n - 1] + np_row[n - x]) * weights[size1 + x]
-                        else:
-                            total_neighbour += (np_row[n+x] + np_row[n-x]) * weights[size1+x]
+                        total_neighbour += (new_arr[n+x] + new_arr[n-x]) * weights[size1+x]
+                    output[ii][start] = total_neighbour
 
-                    output[jj][n] = total_neighbour
+                    #if correct_arr is not None and abs(correct_arr[ii][start] - output[ii][start]) > 0.2:
+                    #    print(correct_arr[ii][start], output[ii][start])
 
             elif symmetric < 0:
                 pass
             else:
-                """
                 for start in range(len(new_arr) - size1 - 1):
                     output[ii][start] = new_arr[start + size1 + 1] * weights[-1]
                     for i in range(start, start + size1 + 1):
                         output[ii][start] += new_arr[i] * weights[i - start]
-                """
-                pass
-    """
-    if correct_arr is not None:
-        bool_arr = output[:, :] == correct_arr[:, :]
-        val = len(bool_arr[bool_arr == False])
-        print(val)
-        if val > 0:
-            arr = np.argwhere(bool_arr == False)
-
-            for posn in arr:
-                n = correct_arr[posn[0], posn[1]]
-                nd = output[posn[0], posn[1]]
-                if abs(n - nd) > 0.5:
-                    print(n, nd, abs(n - nd))
-    """
 
 if __name__ == '__main__':
     fn = "/home/chamomile/Thyme-lab/data/vids/smart-dumb-run-fc2_save_2025-02-06-151144-0000.mp4"

@@ -5,6 +5,11 @@ import cv2
 import cProfile, pstats, io
 from pstats import SortKey
 import scipy.ndimage as ndi
+#import tensorflow as tf
+
+#from tensorflow.python.framework.ops import enable_eager_execution
+#enable_eager_execution()
+
 
 def structural_similarity(
         im1,
@@ -29,12 +34,12 @@ def generate_weights(ndim, sigma=1.5, truncate=3.5):
     weights = ndi._filters._gaussian_kernel1d(sigma, 0, radius)[::-1]
     return weights, cov_norm
 
-def setup(im1, im2, weights, frame_width, frame_height):
-    ux = np.zeros((frame_height, frame_width))
-    uy = np.zeros((frame_height, frame_width))
-    uxx = np.zeros((frame_height, frame_width))
-    uyy = np.zeros((frame_height, frame_width))
-    uxy = np.zeros((frame_height, frame_width))
+def setup(frame_width, frame_height):
+    ux = np.ascontiguousarray(np.zeros((frame_height, frame_width)))
+    uy = np.ascontiguousarray(np.zeros((frame_height, frame_width)))
+    uxx = np.ascontiguousarray(np.zeros((frame_height, frame_width)))
+    uyy = np.ascontiguousarray(np.zeros((frame_height, frame_width)))
+    uxy = np.ascontiguousarray(np.zeros((frame_height, frame_width)))
 
     return ux, uy, uxx, uyy, uxy
 
@@ -127,12 +132,22 @@ def run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
 
     return (A1 * A2) / (B1 * B2)
 
-@nb.njit(parallel=True, fastmath=True)
+#@nb.njit(parallel=True, fastmath=True)
 def correlate1d(input, weights, output=None, axis=0, correct_arr=None):
     height, width = (1200, 1760)
+    #print(input.shape)
     weight_size = len(weights)
     size1 = math.floor(weight_size / 2)
     size2 = weight_size - size1 - 1
+
+    """
+    symmetric = 0
+    if weight_size % 2 == 1:  # if the input weight array is even, it will be symmetric = 0, so we don't need to run this calculation
+        if all(weights == weights[::-1]):
+            symmetric = 1
+        elif all(weights == -weights[::-1]):  # i believe this is ok but don't trust it 100%
+            symmetric = -1
+    """
 
     symmetric = 1
 
@@ -156,6 +171,7 @@ def correlate1d(input, weights, output=None, axis=0, correct_arr=None):
             size1_arr = np_row[0:size1][::-1]
             size2_arr = np_row[-size2:][::-1]
             new_arr = np.concatenate((size1_arr, np_row, size2_arr))
+
             if symmetric > 0:
                 for start in range(width):
                     n = start+size1
@@ -175,6 +191,87 @@ def correlate1d(input, weights, output=None, axis=0, correct_arr=None):
                     for i in range(start, start + size1 + 1):
                         output[ii][start] += new_arr[i] * weights[i - start]
 
+@nb.njit(parallel=True, fastmath=True)
+def correlate1d_x(input, weights, output=None, correct_arr=None):
+    height, width = (1200, 1760)
+    weight_size = len(weights)
+    size1 = math.floor(weight_size / 2)
+    size2 = weight_size - size1 - 1
+
+    symmetric = 1
+
+    rearr = np.concatenate((input[0:size1][::-1], input, input[-size2:][::-1]))
+
+    for start in nb.prange(height):  # could end early by checking that all vals in arr are the same in which case will be the value
+        #print(start)
+        end = start + size1 + size2 + 1
+        np.dot(rearr[start:end].transpose(), np.array(weights, dtype=np.float64), out=output[start])
+        #print(n)
+        #output[start] = np.dot(rearr[start:end].transpose(), np.array(weights, dtype=np.float32), axes=1)
+        #for ii in range(width):
+        #    if correct_arr is not None and abs(correct_arr[start][ii] - output[start][ii]) > 0.2:
+        #        print(correct_arr[start][ii], output[start][ii])
+    """ 
+    for jj in range(width):
+        new_arr = rearr[:, jj]
+        
+        if symmetric > 0:
+            for start in range(height):  # could end early by checking that all vals in arr are the same in which case will be the value
+                n = start + size1
+
+                arr = np.array([new_arr[i] for i in range(n-size1, n+size1+1)])
+                output[start][jj] = np.tensordot(arr, weights, axes=1)
+    """
+
+#@nb.njit(parallel=True, fastmath=True)
+def correlate1d_y(input, weights, output=None):
+    #pr = cProfile.Profile()
+    #pr.enable()
+
+    height, width = (1200, 1760)
+    weight_size = len(weights)
+    size1 = math.floor(weight_size / 2)
+    size2 = weight_size - size1 - 1
+
+    symmetric = 1
+
+    rearr = np.concatenate((input[:, 0:size1][:,::-1], input, input[:, -size2:][:,::-1]), axis=1)
+
+    for start in range(width):
+        # print(start)
+        end = start + size1 + size2 + 1
+
+        np.dot(rearr[:, start:end], np.array(weights, dtype=np.float64), out=output[start])
+
+    #pr.disable()
+    #s = io.StringIO()
+    #sortby = SortKey.CUMULATIVE
+    #ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+    #ps.print_stats()
+    #print(s.getvalue())
+
+"""
+        if symmetric > 0:
+            for start in range(width):
+                n = start + size1
+
+                arr = np.array([new_arr[i] for i in range(n-size1, n+size1+1)])
+                output[ii][start]  = np.tensordot(arr, weights, axes=1)
+"""
+"""
+    if correct_arr is not None:
+        bool_arr = output[:, :] == correct_arr[:, :]
+        val = len(bool_arr[bool_arr == False])
+        print(val)
+        if val > 0:
+            arr = np.argwhere(bool_arr == False)
+
+            for posn in arr:
+                n = correct_arr[posn[0], posn[1]]
+                nd = output[posn[0], posn[1]]
+                if abs(n - nd) > 0.01:
+                    print(n, nd, abs(n - nd))
+    """
 if __name__ == '__main__':
     fn = "/home/chamomile/Thyme-lab/data/vids/smart-dumb-run-fc2_save_2025-02-06-151144-0000.mp4"
     vidcap = cv2.VideoCapture(fn)

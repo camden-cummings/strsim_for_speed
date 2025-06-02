@@ -13,13 +13,13 @@ def generate_weights(ndim, sigma=1.5, truncate=3.5):
     weights = ndi._filters._gaussian_kernel1d(sigma, 0, radius)[::-1]
     return weights, cov_norm
 
-def setup(frame_width, frame_height):
-    ux = np.ascontiguousarray(np.zeros((frame_height, frame_width)))
-    uy = np.ascontiguousarray(np.zeros((frame_height, frame_width)))
-    uxx = np.ascontiguousarray(np.zeros((frame_height, frame_width)))
-    uyy = np.ascontiguousarray(np.zeros((frame_height, frame_width)))
-    uxy = np.ascontiguousarray(np.zeros((frame_height, frame_width)))
-
+def setup(frame_width, frame_height, order):
+    ux = np.zeros((frame_height, frame_width), dtype=np.float32, order=order)
+    uy = np.zeros((frame_height, frame_width), dtype=np.float32, order=order)
+    uxx = np.zeros((frame_height, frame_width), dtype=np.float32, order=order)
+    uyy = np.zeros((frame_height, frame_width), dtype=np.float32, order=order)
+    uxy = np.zeros((frame_height, frame_width), dtype=np.float32, order=order)
+    print(ux.flags)
     return ux, uy, uxx, uyy, uxy
 
 """
@@ -79,9 +79,7 @@ def fastcalc(mat1, mat2, width, height, out):
 
 @nb.njit(parallel=True, fastmath=True)
 def fast_run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
-    #print(np.max(ux), np.max(uy), np.max(uxx), np.max(uyy), np.max(uxy))
     ux_squared = np.multiply(ux, ux)
-    #print("max", np.max(ux_squared))
     uy_squared = np.multiply(uy, uy)
     ux_uy = np.multiply(ux, uy)
     vx = np.multiply(cov_norm, (uxx-ux_squared))

@@ -1,10 +1,14 @@
+import time
+
 import numpy as np
 import cProfile, pstats, io
 from pstats import SortKey
 import cv2
 
-from structural_sim_from_scratch import setup, generate_weights, correlate1d_x, correlate1d_y, run_math
+from structural_sim_from_scratch import setup, generate_weights, correlate1d_x, correlate1d_y, run_math, normalize_diff, height, width
+
 #from skimage.metrics import structural_similarity
+
 
 def run(diff):
     return (diff * 255).astype("uint8")
@@ -22,33 +26,27 @@ def tester(matr_to_check, correct_matrix):
             if abs(n - nd) > 0.5:
                 print(n, nd, abs(n - nd))
 
-def normalize_diff(diff):
-    diff[diff > 1] = 1
-    diff[diff < 0] = 0
-
-    diff *= 255
-    diff = diff.astype("uint8")
-
-    return diff
-
 def vid_runner(vidcap, mode_img, weights, data_range):
     cont, curr_img = vidcap.read()
     curr_img = cv2.cvtColor(curr_img, cv2.COLOR_BGR2GRAY)
-    curr_img_store = np.zeros((1200, 1760))
+    curr_img_store = np.zeros((height, width))
 
-    #mask = np.zeros((1200, 1760, 3))
-    #cv2.drawContours(mask, [np.array([[400, 100], [400,200], [100, 100], [100, 200]], dtype=np.int32)], -1, (255, 255, 255), cv2.FILLED)
-    #mask = cv2.cvtColor(np.array(mask, np.uint8), cv2.COLOR_BGR2GRAY)
-    #mask = mask.astype(np.uint8, copy=False)
+    """
+    # masked image ex
+    mask = np.zeros((height, width, 3))
+    cv2.drawContours(mask, [np.array([[400, 100], [400,200], [100, 100], [100, 200]], dtype=np.int32)], -1, (255, 255, 255), cv2.FILLED)
+    mask = cv2.cvtColor(np.array(mask, np.uint8), cv2.COLOR_BGR2GRAY)
+    mask = mask.astype(np.uint8, copy=False)
 
-    #print(mask.shape, curr_img.shape, mode_img.shape)
-    #curr_img = cv2.bitwise_and(curr_img, curr_img, mask=mask)
-    #mode_img = cv2.bitwise_and(mode_img, mode_img, mask=mask)
+    curr_img = cv2.bitwise_and(curr_img, curr_img, mask=mask)
+    mode_img = cv2.bitwise_and(mode_img, mode_img, mask=mask)
+    """
+
     curr_img = curr_img.astype(np.float64, copy=False)
     mode_img = mode_img.astype(np.float64, copy=False)
 
-    ux, uy, uxx, uyy, uxy = setup(1760,1200)
-    ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = setup(1760, 1200)
+    ux, uy, uxx, uyy, uxy = setup(width,height)
+    ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = setup(width, height)
 
     correlate1d_x(mode_img * mode_img, weights, uyy_tmp)
     correlate1d_y(uyy_tmp, weights, uyy)
@@ -68,10 +66,13 @@ def vid_runner(vidcap, mode_img, weights, data_range):
 
     vy = cov_norm * (uyy - uy*uy)
 
+    tottime = 0
     frame_count = 0
     while cont and frame_count < 50:
         pr = cProfile.Profile()
         pr.enable()
+
+        t1 = time.time()
 
         correlate1d_x(curr_img, weights, ux_tmp)
         correlate1d_y(ux_tmp, weights, ux)
@@ -81,15 +82,30 @@ def vid_runner(vidcap, mode_img, weights, data_range):
         correlate1d_y(uxy_tmp, weights, uxy)
 
         diff = run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy)
-        diff = normalize_diff(diff)
-        cv2.imshow('diff', diff)
+        diff_s = normalize_diff(diff)
 
-        """
+        t0 = time.time()
+
+        pr.disable()
+        s = io.StringIO()
+        sortby = SortKey.CUMULATIVE
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print(s.getvalue())
+
+        total = t0 - t1
+        tottime += total
+#        print(total)
+
+#        cv2.imshow('diff', diff)
+
         # find contours // 
         thresh = cv2.threshold(diff, 150, 255, cv2.THRESH_BINARY)[1]
 
         scipy_contours = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         scipy_contours = scipy_contours[0] if len(scipy_contours) == 2 else scipy_contours[1]
+
+#        sort_contours_by_area(scipy_contours, frame_count, time, diff, mask, shape_of_rows, cell_contours, cell_centers)
 
         if len(scipy_contours) > 0:
             cv2.drawContours(curr_img_store, scipy_contours, -1, (0,255,0), 1)
@@ -97,7 +113,7 @@ def vid_runner(vidcap, mode_img, weights, data_range):
         cv2.imshow('f', curr_img_store)
 
         cv2.imshow('f', thresh)
-        """
+
 
         """
         # compare to scikit.ndimage
@@ -107,10 +123,11 @@ def vid_runner(vidcap, mode_img, weights, data_range):
         cv2.imshow('diff_strsim', diff_strsim)
         """
 
-
+        """
         k = cv2.waitKey(1) & 0xff
         if k == 27:
             break
+        """
 
         cont, curr_img = vidcap.read()
 
@@ -119,14 +136,8 @@ def vid_runner(vidcap, mode_img, weights, data_range):
 
         frame_count += 1
 
-        pr.disable()
-        s = io.StringIO()
-        sortby = SortKey.CUMULATIVE
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        print(s.getvalue())
 
-
+    print(tottime/51)
     #correlate1d_x.parallel_diagnostics(level=4)
     #correlate1d_y.parallel_diagnostics(level=4)
     #run_math.parallel_diagnostics(level=4)

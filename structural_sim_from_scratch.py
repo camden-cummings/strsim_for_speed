@@ -3,6 +3,8 @@ import numpy as np
 import math
 import scipy.ndimage as ndi
 
+height, width = (1200, 1760)
+
 def generate_weights(ndim, sigma=1.5, truncate=3.5):
     radius = int(truncate * sigma + 0.5)  # radius as in ndimage
     win_size = 2 * radius + 1
@@ -42,9 +44,22 @@ def run_math(cov_norm, data_range, ux, uy, uxx, vy, uxy):
 
     return (A1 * A2) / (B1 * B2)
 
+@nb.njit(fastmath=True)
+def normalize_diff(diff):
+    for x in range(height):
+        for y in range(width):
+            if diff[x][y] > 1:
+                diff[x][y] = 1
+            elif diff[x][y] < 0:
+                diff[x][y] = 0
+
+            diff[x][y] = 255*diff[x][y]
+
+    diff = diff.astype("uint8")
+    return diff
+
 @nb.njit(parallel=True, fastmath=True)
 def correlate1d_x(input, weights, output):
-    height, width = (1200, 1760)
     weight_size = len(weights)
     size1 = math.floor(weight_size / 2)
     size2 = weight_size - size1 - 1
@@ -52,10 +67,10 @@ def correlate1d_x(input, weights, output):
     #rearr = np.concatenate((input[0:size1][::-1], input, input[-size2:][::-1]))
     for jj in nb.prange(width):
         np_row = input[:, jj]
-
         size1_arr = np_row[0:size1][::-1]
         size2_arr = np_row[-size2:][::-1]
         new_arr = np.concatenate((size1_arr, np_row, size2_arr))
+        #new_arr = rearr[:, jj]
 
         for start in range(height):
             n = start+size1
@@ -66,7 +81,6 @@ def correlate1d_x(input, weights, output):
             
 @nb.njit(parallel=True, fastmath=True)         
 def correlate1d_y(input, weights, output):
-    height, width = (1200, 1760)
     weight_size = len(weights)
     size1 = math.floor(weight_size / 2)
     size2 = weight_size - size1 - 1

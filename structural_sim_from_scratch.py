@@ -197,26 +197,16 @@ def correlate1d_x_r(rearr, weights, output, width, height):
         output[start] = np.dot(new_arr, weights)
 
 
-#@nb.njit(parallel=True, fastmath=True)
+@nb.njit(parallel=True, fastmath=True)
 def correlate1d_y_r(input, weights, width, height, output):
     weight_size = len(weights)
     size1 = math.floor(weight_size / 2)
     size2 = weight_size - size1 - 1
 
-    #size1_arr = np_row[0:size1][::-1]
-    #size2_arr = np_row[-size2:][::-1]
-    #new_arr = np.concatenate((size1_arr, np_row, size2_arr))
+    rearr = np.concatenate((input[:, 0:size1][:, ::-1], input, input[:, -size2:][:, ::-1]), axis=1) # something in the construction of this is wrong but I can't figure out what
 
-#    rearr = np.concatenate((input[:, 0:5][:,::-1], input, input[:, -5:][:,::-1]), axis=1)
-#    rearr = rearr.transpose()
-
-    #rearr = np.concatenate((input[:, 0:size1][:, ::-1], input, input[:, -size2:][:, ::-1]), axis=1) # something in the construction of this is wrong but I can't figure out what
-    #print(rearr)
     for start in nb.prange(width):
         end = start+weight_size
         new_arr = rearr[:, start:end]
-        #print("y",new_arr.shape)
-        output[start] = np.dot(new_arr, weights)
 
-    #print("o", output.transpose())
-    #output = output.transpose()
+        output[start] = np.dot(new_arr, weights)

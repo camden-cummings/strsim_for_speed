@@ -141,7 +141,7 @@ def run_correlate_rearr(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, u
 
     return diff_s
 
-def run_mode_rearr(mode_img, uy_tmp, uy, uyy_tmp, uyy, size1, size2, width, height):
+def run_mode_rearr(mode_img, uy_tmp, uy, uyy_tmp, uyy, size1, size2, width, height, np_weights):
     rearr = np.concatenate((mode_img[0:size1][::-1], mode_img, mode_img[-size2:][::-1]))
     correlate1d_x_r(rearr, np_weights, uy_tmp, width, height)
     correlate1d_y(uy_tmp, np_weights, width, height, uy)
@@ -165,9 +165,10 @@ def update_corr_rearr(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, uxy
     correlate1d_y(uxy_tmp, np_weights, width, height, uxy)
 
 def run_correlate_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, uxy, uy_tmp, uy, uyy_tmp, uyy, size1,
-                        size2, width, height, cov_norm, data_range):
-    run_mode_rearr_y(mode_img, uy_tmp, uy, uyy_tmp, uyy, size1, size2, width, height)
-    update_corr_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, uxy, size1, size2, width, height)
+                        size2, width, height, cov_norm, data_range, np_weights):
+#    print(uxx.flags, uxx_tmp.flags)
+    run_mode_rearr_y(mode_img, uy_tmp, uy, uyy_tmp, uyy, size1, size2, width, height, np_weights)
+    update_corr_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, uxy, size1, size2, width, height, np_weights)
 
     S = run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
     S = fast_run_math(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
@@ -176,7 +177,7 @@ def run_correlate_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp,
     diff_s = normalize_diff(S, width, height)
 
     return diff_s
-
+#main_focusable
 def checker(og, comp1, width, height):
     comp2 = np.zeros((height, width))
     correlate1d_y(og, np_weights, width, height, comp2)
@@ -187,11 +188,12 @@ def checker(og, comp1, width, height):
 
     print(len(im[im == 1]))
 
-def run_mode_rearr_y(mode_img, uy_tmp, uy, uyy_tmp, uyy, size1, size2, width, height):
+def run_mode_rearr_y(mode_img, uy_tmp, uy, uyy_tmp, uyy, size1, size2, width, height, np_weights):
     rearr = np.concatenate((mode_img[0:size1][::-1], mode_img, mode_img[-size2:][::-1]))
     correlate1d_x_r(rearr, np_weights, uy_tmp, width, height)
 
     T = uy_tmp.transpose()
+    #T = T.astype(dtype=np.float32, order='C', copy=False)
     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
     correlate1d_y_r(rearr, np_weights, width, height, uy)
 
@@ -204,6 +206,7 @@ def run_mode_rearr_y(mode_img, uy_tmp, uy, uyy_tmp, uyy, size1, size2, width, he
     correlate1d_x_r(rearr, np_weights, uyy_tmp, width, height)
 
     T = uyy_tmp.transpose()
+    #T = T.astype(dtype=np.float32, order='C', copy=False)
     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
     correlate1d_y_r(rearr, np_weights, width, height, uyy)
     #checker(uyy.transpose(), comp_uy, width, height)
@@ -211,11 +214,12 @@ def run_mode_rearr_y(mode_img, uy_tmp, uy, uyy_tmp, uyy, size1, size2, width, he
 #    checker(uyy_tmp, uyy.transpose(), width, height)
 #    print("------")
 
-def update_corr_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, uxy, size1, size2, width, height):
+def update_corr_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, uxy, size1, size2, width, height, np_weights):
     rearr = np.concatenate((curr_img[0:size1][::-1], curr_img, curr_img[-size2:][::-1]))
     correlate1d_x_r(rearr, np_weights, ux_tmp, width, height)
 
     T = ux_tmp.transpose()
+    #T = T.astype(dtype=np.float32, order='C', copy=False)
     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
     correlate1d_y_r(rearr, np_weights, width, height, ux)
 #    print("3")
@@ -226,6 +230,7 @@ def update_corr_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, u
     correlate1d_x_r(rearr, np_weights, uxx_tmp, width, height)
 
     T = uxx_tmp.transpose()
+    #T = T.astype(dtype=np.float32, order='C', copy=False)
     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
     correlate1d_y_r(rearr, np_weights, width, height, uxx)
 #    print("4")
@@ -236,6 +241,7 @@ def update_corr_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, u
     correlate1d_x_r(rearr, np_weights, uxy_tmp, width, height)
 
     T = uxy_tmp.transpose()
+    #T = T.astype(dtype=np.float32, order='C', copy=False)
     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
     correlate1d_y_r(rearr, np_weights, width, height, uxy)
 #    print('5')
@@ -246,8 +252,8 @@ def vid_runner(vidcap, mode_img, weights, data_range):
     cont, curr_img = vidcap.read()
     curr_img = cv2.cvtColor(curr_img, cv2.COLOR_BGR2GRAY)
 
-    curr_img = curr_img.astype(np.float64, copy=False)
-    mode_img = mode_img.astype(np.float64, copy=False)
+    curr_img = curr_img.astype(np.float32, copy=False, order='C')
+    mode_img = mode_img.astype(np.float32, copy=False, order='C')
     #print(curr_img.shape)
     sigma = 1.5
     truncate = 3.5
@@ -260,10 +266,9 @@ def vid_runner(vidcap, mode_img, weights, data_range):
     C1 = (0.01 * data_range) ** 2 #K = 0.01
     C2 = (0.03 * data_range) ** 2 #K = 0.03
 
-    ux, uy, uxx, uyy, uxy = setup(992,660) # doing this so we can transpose it later, numba requires C major order s.t. when we go in the Y direction, we want to
-    # instead treat it like going in the X direction instead
-    ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = setup(992, 660)
-    ux_t, uy_t, uxx_t, uyy_t, uxy_t = setup(660, 992)
+    ux, uy, uxx, uyy, uxy = setup(992,660, 'C')
+    ux_tmp, uy_tmp, uxx_tmp, uyy_tmp, uxy_tmp = setup(992, 660, 'C')
+    ux_t, uy_t, uxx_t, uyy_t, uxy_t = setup(660, 992, 'C')
 
     #correlate1d_x(curr_img, weights, ux_tmp)  # , curr_scipy)
     #correlate1d_y(curr_img, weights, ux)  # , curr_scipy)
@@ -275,23 +280,23 @@ def vid_runner(vidcap, mode_img, weights, data_range):
 
     masked_mode_noblur_img = cv2.bitwise_and(
         mode_img, mode_img, mask=contour_mask)
-    masked_mode_noblur_img = mode_img.astype(np.float64, copy=False)
+    masked_mode_noblur_img = masked_mode_noblur_img.astype(np.float32, copy=False, order='C')
 
     height, width = (660, 992)
     weight_size = len(weights)
     size1 = math.floor(weight_size / 2)
     size2 = weight_size - size1 - 1
-
-    run_correlate_rearr(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, uxy, uy_tmp, uy, uyy_tmp, uyy, size1,
-                        size2, width, height, cov_norm, data_range)
+    np_weights = np.array(weights, dtype=np.float32, order='C')
+    print(np_weights.flags)
+#    np_weights = np_weights.transpose()
+    #run_correlate_rearr(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, uxy, uy_tmp, uy, uyy_tmp, uyy, size1,
+    #                    size2, width, height, cov_norm, data_range)
     #run_correlate(curr_img, masked_mode_noblur_img, ux_tmp, ux_t, uxx_tmp, uxx_t, uxy_tmp, uxy_t, uy_tmp, uy_t,
     #                  uyy_tmp, uyy_t, width, height)
 
     run_correlate_rearr_y(curr_img, masked_mode_noblur_img, ux_tmp, ux_t, uxx_tmp, uxx_t, uxy_tmp, uxy_t, uy_tmp,
                           uy_t, uyy_tmp, uyy_t, size1,
-                          size2, width, height, cov_norm, data_range)
-
-    #np_weights = np.array(weights, dtype=np.float64)
+                          size2, width, height, cov_norm, data_range, np_weights)
 
     frame_count = 0
     tottime = 0
@@ -306,14 +311,14 @@ def vid_runner(vidcap, mode_img, weights, data_range):
 
         masked_curr_img = cv2.bitwise_and(
             curr_img, curr_img, mask=contour_mask)
-        masked_curr_img = masked_curr_img.astype(np.float64, copy=False)
+        masked_curr_img = masked_curr_img.astype(np.float32, copy=False, order='C')
 
 #        run_correlate_rearr(masked_curr_img, masked_mode_noblur_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, uxy, uy_tmp, uy, uyy_tmp, uyy, size1,
 #                            size2, width, height, cov_norm, data_range)
 
 
         diff_s = run_correlate_rearr_y(masked_curr_img, masked_mode_noblur_img, ux_tmp, ux_t, uxx_tmp, uxx_t, uxy_tmp, uxy_t, uy_tmp, uy_t, uyy_tmp, uyy_t, size1,
-                              size2, width, height, cov_norm, data_range)
+                              size2, width, height, cov_norm, data_range, np_weights)
 
         cv2.imshow('diff', diff_s)
 
@@ -324,7 +329,7 @@ def vid_runner(vidcap, mode_img, weights, data_range):
         cont, curr_img = vidcap.read()
 
         curr_img_store = cv2.cvtColor(curr_img, cv2.COLOR_BGR2GRAY)
-        curr_img = curr_img_store.astype(np.float64, copy=False)
+        curr_img = curr_img_store.astype(np.float32, copy=False)
 
         frame_count += 1
         t0 = time.time()
@@ -356,11 +361,10 @@ if __name__ == '__main__':
     #np_weights = np.array(weights, dtype=np.float64)
 
     weights = generate_weights(2, sigma=1.5, truncate=3.5)[0].tolist()
-    np_weights = np.array(weights, dtype=np.float64)
 
-    weight_size = len(weights)
-    size1 = math.floor(weight_size / 2)
-    size2 = weight_size - size1 - 1
+#    weight_size = len(weights)
+#    size1 = math.floor(weight_size / 2)
+#    size2 = weight_size - size1 - 1
 
 #    im1 = np.array([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10], [11, 12, 13, 14, 15], [11, 12, 13, 14, 15], [11, 12, 13, 14, 15]], dtype=np.float64)#.ascontiguousarray()
     #im2 = np.array([[10, 11, 12], [13, 14, 15], [16, 17, 18]])

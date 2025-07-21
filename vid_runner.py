@@ -1,16 +1,17 @@
-import os
-import time
-import cProfile, pstats, io
-from pstats import SortKey
+import cProfile
+import io
 import math
+import os
+import pstats
+import time
+from pstats import SortKey
 
 import cv2
 import numpy as np
 
-from speedy_str_sim import run_correlate_rearr_y
 from helpers import get_contour_mask, calc_mode_img
+from speedy_str_sim import run_correlate_rearr_y
 from structural_sim_from_scratch import setup, generate_weights
-
 
 
 def vid_runner(vidcap, mode_img, weights, data_range, frame_width, frame_height, cov_norm):
@@ -47,7 +48,7 @@ def vid_runner(vidcap, mode_img, weights, data_range, frame_width, frame_height,
     prev_curr_img = np.zeros((frame_height, frame_width), dtype=np.float32, order='C')
     pr = cProfile.Profile()
     pr.enable()
-    while cont:
+    while cont and frame_count < 100:
         #pr = cProfile.Profile()
         #pr.enable()
 
@@ -64,11 +65,12 @@ def vid_runner(vidcap, mode_img, weights, data_range, frame_width, frame_height,
         uy = ux.copy()
         uyy = uxx.copy()
 
-        cv2.imshow('diff', diff_s)
+        """cv2.imshow('diff', diff_s)
 
         k = cv2.waitKey(1) & 0xff
         if k == 27:
             break
+        """
 
         cont, curr_img = vidcap.read()
         #cv2.imshow('curr', curr_img)
@@ -118,6 +120,7 @@ if __name__ == '__main__':
     mode_noblur_img = cv2.cvtColor(cv2.imread(mode_noblur_path), cv2.COLOR_BGR2GRAY)
 
     weights, cov_norm = generate_weights(ndim=2, sigma=1.5, truncate=3.5)
+    print(cov_norm)
     weights = weights.tolist()
 
     vid_runner(vidcap, mode_noblur_img, weights, 255, frame_width, frame_height, cov_norm)

@@ -1,6 +1,11 @@
+import time
+
 import numpy as np
-import cv2
-from structural_sim_from_scratch import (run_math_complete, normalize_diff, correlate1d_x, correlate1d_y)
+
+from comparison import correlate1d_y as correlate1d_y_
+from structural_sim_from_scratch import (run_math_complete, normalize_diff, __correlate1d_x as correlate1d_x,
+                                         __correlate1d_y as correlate1d_y, correlate1d_y_wrap)
+
 
 def run_correlate_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, uxy, uy_tmp, uy, uyy_tmp, uyy, size1,
                         size2, width, height, cov_norm, data_range, np_weights, weight_size):
@@ -15,6 +20,18 @@ def run_correlate_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp,
     return diff_s
 
 def check_similarity(im1, im2, width, height):
+    """
+    Parameters
+    ----------
+    im1
+    im2
+    width
+    height
+
+    Returns
+    -------
+    unknown
+    """
     im = np.zeros((height, width))
     im[(im1 - im2) > 0.001] = 1
     im[(im1 - im2) < -0.001] = 1
@@ -25,18 +42,45 @@ def run_mode_rearr_y(mode_img, uy_tmp, uy, uyy_tmp, uyy, size1, size2, width, he
     rearr = np.concatenate((mode_img[0:size1][::-1], mode_img, mode_img[-size2:][::-1]))
     correlate1d_x(rearr, np_weights, weight_size, uy_tmp, height)
 
+    start_time = time.time()
+
+    correlate1d_y_wrap(uy_tmp, np_weights, weight_size, width, uy, size1, size2)
+
+#    print("wrap", time.time() - start_time)
+
+    contig_time = time.time()
+
     T = uy_tmp.transpose()
     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+    rearr = np.ascontiguousarray(rearr)
+
+    tot_contig = time.time() - contig_time
+
+    start_time = time.time()
+
     correlate1d_y(rearr, np_weights, weight_size, width, uy)
+#    print("_y", (time.time() - start_time) + tot_contig)
+
+
+    start_time = time.time()
+
+    correlate1d_y_(rearr, np_weights, uy_tmp, width, height)
+#    print("_y_", (time.time() - start_time) + tot_contig)
+
 #    checker(uy_tmp, uy.transpose(), width, height)
 
     inp = mode_img * mode_img
     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
     correlate1d_x(rearr, np_weights, weight_size, uyy_tmp, height)
 
+    correlate1d_y_wrap(uyy_tmp, np_weights, weight_size, width, uyy, size1, size2)
+
     T = uyy_tmp.transpose()
     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+    rearr = np.ascontiguousarray(rearr)
     correlate1d_y(rearr, np_weights, weight_size, width, uyy)
+    correlate1d_y_(rearr, np_weights, uyy_tmp, width, height)
+
 #    checker(uyy_tmp, uyy.transpose(), width, height)
 
 
@@ -44,45 +88,40 @@ def update_corr_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, u
     rearr = np.concatenate((curr_img[0:size1][::-1], curr_img, curr_img[-size2:][::-1]))
     correlate1d_x(rearr, np_weights, weight_size, ux_tmp, height)
 
+    correlate1d_y_wrap(ux_tmp, np_weights, weight_size, width, ux, size1, size2)
+
     T = ux_tmp.transpose()
     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+    rearr = np.ascontiguousarray(rearr)
     correlate1d_y(rearr, np_weights, weight_size, width, ux)
+    correlate1d_y_(rearr, np_weights, ux_tmp, width, height)
+
 #    checker(ux_tmp, ux.transpose(), width, height)
 
     inp = curr_img * curr_img
     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
     correlate1d_x(rearr, np_weights, weight_size, uxx_tmp, height)
 
+    correlate1d_y_wrap(uxx_tmp, np_weights, weight_size, width, uxx, size1, size2)
+
     T = uxx_tmp.transpose()
     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+    rearr = np.ascontiguousarray(rearr)
     correlate1d_y(rearr, np_weights, weight_size, width, uxx)
+    correlate1d_y_(rearr, np_weights, uxx_tmp, width, height)
+
 #    checker(uxx_tmp, uxx.transpose(), width, height)
 
     inp = curr_img * mode_img
     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
     correlate1d_x(rearr, np_weights, weight_size, uxy_tmp, height)
 
+    correlate1d_y_wrap(uxy_tmp, np_weights, weight_size, width, uxy, size1, size2)
+
     T = uxy_tmp.transpose()
     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
+    rearr = np.ascontiguousarray(rearr)
     correlate1d_y(rearr, np_weights, weight_size, width, uxy)
+    correlate1d_y_(rearr, np_weights, uxy_tmp, width, height)
+
 #    checker(uxy_tmp, uxy.transpose(), width, height)
-
-"""
-if __name__ == '__main__':
-    filename = "/home/chamomile/Downloads/labview-comp/9_20_0-392-long.avi"
-    vidcap = cv2.VideoCapture(filename)
-
-    mode_noblur_path = filename[:-4] + "-mode.png"
-    mode_noblur_img = cv2.cvtColor(cv2.imread(mode_noblur_path), cv2.COLOR_BGR2GRAY)
-
-    weights = generate_weights(2, sigma=1.5, truncate=3.5)[0].tolist()
-    np_weights = np.array(weights)
-
-"""
-
-
-
-"""
-    #vid_runner_(vidcap, mode_noblur_img, np_weights, 255)
-    vid_runner(vidcap, mode_noblur_img, weights, 255, 992, 660)
-"""

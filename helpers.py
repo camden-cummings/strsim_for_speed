@@ -1,12 +1,14 @@
 import pickle
 
-import numpy as np
 import cv2
+import numpy as np
 from scipy.stats import mode
+
 
 def calc_mode(deq: np.ndarray, frame_height: int, frame_width: int):  # *
     """Finds a mode image based on a given array of images, effectively creating a background
-    image."""
+    image.
+    """
     mode_img = np.zeros([frame_height, frame_width])
 
     for j, _ in enumerate(mode_img[:, 0]):
@@ -49,6 +51,17 @@ def calc_mode_img(vidcap, frame_width: int, frame_height: int, filename: str, bl
     return mode_img
 
 def get_contour_mask(cell_filename, frame_width, frame_height):
+    """
+    Parameters
+    ----------
+    cell_filename
+    frame_width
+    frame_height
+
+    Returns
+    -------
+    unknown
+    """
     contour_mask = np.zeros((frame_height, frame_width, 3))
 
     with open(cell_filename, 'rb') as f:

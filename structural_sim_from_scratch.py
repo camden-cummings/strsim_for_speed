@@ -36,7 +36,7 @@ def setup(width, height, order):
     height
         Height of image.
     order
-        Array can be in C major or R major - depending on what
+        Array can be in C major or F major - depending on what
         operations are performed, one or the other may be faster.
 
     Returns
@@ -86,42 +86,6 @@ def run_math_complete(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
     B2 = sigma_x + sigma_y + C2
 
     return (A1 * A2) / (B1 * B2)
-
-@nb.njit(parallel=True, fastmath=True)
-def run_math_(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
-    """Use to compare images in isolation (i.e. not on a video).
-
-    Parameters
-    ----------
-    cov_norm
-    data_range
-    ux
-    uy
-    uxx
-    uyy
-    uxy
-
-    Returns
-    -------
-    unknown
-    """
-    ux_squared = np.multiply(ux, ux)
-    uy_squared = np.multiply(uy, uy)
-    ux_uy = np.multiply(ux, uy)
-    sigma_x = np.multiply(cov_norm, (uxx - ux_squared))
-    sigma_xy = np.multiply(cov_norm, (uxy - ux_uy))
-    sigma_y = np.multiply(cov_norm, (uyy - uy_squared))
-
-    C1 = (0.01 * data_range) ** 2
-    C2 = (0.03 * data_range) ** 2
-
-    """A1 = 2 * ux_uy + C1
-    A2 = 2 * sigma_xy + C2
-    B1 = ux_squared + uy_squared + C1
-    B2 = sigma_x + sigma_y + C2
-    """
-
-    return ((2 * ux_uy + C1) * (2 * sigma_xy + C2)) / ((ux_squared + uy_squared + C1) * (sigma_x + sigma_y + C2))
 
 @nb.njit(parallel=True, fastmath=True)
 def run_math(cov_norm, data_range, ux, uy, uxx, sigma_y, uxy):
@@ -185,7 +149,7 @@ def normalize_diff(diff, width, height):
     return diff
 
 @nb.njit(parallel=True, fastmath=True)
-def __correlate1d_x(rearr, weights, weight_size, output, height):
+def correlate1d_x(rearr, weights, weight_size, height, output):
     """Applies weights to image in x direction.
 
     Parameters
@@ -210,11 +174,11 @@ def correlate1d_y_wrap(matr, weights, weight_size, width, output, size1, size2):
     rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
     rearr = np.ascontiguousarray(rearr)
 
-    __correlate1d_y(rearr, weights, weight_size, width, output)
+    correlate1d_y(rearr, weights, weight_size, width, output)
 
 
 @nb.njit(parallel=True, fastmath=True)
-def __correlate1d_y(rearr, weights, weight_size, width, output):
+def correlate1d_y(rearr, weights, weight_size, width, output):
     """Applies weights to image in y direction. For speed, the given image is expected to be transposed from
 
     Parameters

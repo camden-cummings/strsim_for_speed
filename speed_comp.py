@@ -1,17 +1,12 @@
-import cProfile
-import io
 import math
-import pstats
 import time
-from pstats import SortKey
 
 import numpy as np
 
-from comparison import correlate1d_x as correlate1d_x_, correlate1d_y as correlate1d_y_
-from speedy_str_sim import run_correlate_rearr_y
-from structural_sim_from_scratch import setup, generate_weights, __correlate1d_x as correlate1d_x, \
-    __correlate1d_y as correlate1d_y
-
+from computer_vision.comparison import correlate1d_x as correlate1d_x_, correlate1d_y as correlate1d_y_
+from computer_vision.speedy_str_sim import run_correlate_rearr_y
+from computer_vision.structural_sim_from_scratch import setup, generate_weights, correlate1d_x, correlate1d_y
+from computer_vision.profile_wrap import start_profiler, end_profiler
 # compare scipy strsim, other python implementations (?) to own
 
 #from numba import config, threading_layer
@@ -34,20 +29,6 @@ def generate_test_imageset(width, height, num_of_tests):
         testset.append((img1, img2))
 
     return testset
-
-def start_profiler():
-    pr = cProfile.Profile()
-    pr.enable()
-
-    return pr
-
-def end_profiler(pr):
-    pr.disable()
-    s = io.StringIO()
-    sortby = SortKey.CUMULATIVE
-    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-    ps.print_stats()
-    print(s.getvalue())
 
 testset = generate_test_imageset(1000, 1000, 100)
 weights, cov_norm = generate_weights(ndim=2, sigma=1.5, truncate=3.5)
@@ -79,7 +60,7 @@ end_profiler(profiler)
 output = np.zeros((width, height), dtype=np.float32)
 
 correlate1d_x_(img1, np_weights, output, width, height)
-correlate1d_x(img1, np_weights, weight_size, output, height)
+correlate1d_x(img1, np_weights, weight_size, height, output)
 
 correlate1d_y_(img1, np_weights, output, width, height)
 correlate1d_y(img1, np_weights, weight_size, width, output)
@@ -99,7 +80,7 @@ for img1, img2 in testset:
 
     start_time = time.time()
 
-    correlate1d_x(img1, np_weights, weight_size, output, height)
+    correlate1d_x(img1, np_weights, weight_size, height, output)
 
     end_time = time.time()
     tot_1d += end_time - start_time

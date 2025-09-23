@@ -2,6 +2,20 @@ import cProfile
 import io
 import pstats
 from pstats import SortKey
+import numpy as np
+import time
+
+def profilefunc(func, num_of_tests, *args, **kwargs):
+    pr = start_profiler()
+    start_time = time.time()
+
+    for i in np.arange(num_of_tests):
+        func(*args, **kwargs)
+
+    end_time = time.time()
+    print(end_time - start_time)
+
+    end_profiler(pr)
 
 def start_profiler():
     pr = cProfile.Profile()

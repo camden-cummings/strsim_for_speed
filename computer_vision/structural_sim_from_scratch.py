@@ -2,6 +2,24 @@
 import numba as nb
 import numpy as np
 import scipy.ndimage as ndi
+import scipy
+#from scipy.linalg.blas import dgemm
+from numba.pycc import CC
+
+import itertools
+#cc = CC('my_module')
+#cc.verbose = True
+from multiprocessing import Pool, Process, Lock
+
+import cProfile
+import io
+import math
+import os
+import pstats
+import time
+from pstats import SortKey
+import copy
+import threading
 
 def generate_weights(ndim=2, sigma=1.5, truncate=3.5):
     """Generates Gaussian weights based on given sigma and truncate.
@@ -26,7 +44,7 @@ def generate_weights(ndim=2, sigma=1.5, truncate=3.5):
 
     return weights, cov_norm
 
-def setup(width, height, order):
+def setup(width, height, order, data_type):
     """Declares spaces for ux, uy, uxx, uyy & uxy.
 
     Parameters
@@ -43,33 +61,72 @@ def setup(width, height, order):
     -------
     unknown
     """
-    ux = np.zeros((height, width), dtype=np.float32, order=order)
-    uy = np.zeros((height, width), dtype=np.float32, order=order)
-    uxx = np.zeros((height, width), dtype=np.float32, order=order)
-    uyy = np.zeros((height, width), dtype=np.float32, order=order)
-    uxy = np.zeros((height, width), dtype=np.float32, order=order)
+    ux = np.zeros((height, width), dtype=data_type, order=order)
+    uy = np.zeros((height, width), dtype=data_type, order=order)
+    uxx = np.zeros((height, width), dtype=data_type, order=order)
+    uyy = np.zeros((height, width), dtype=data_type, order=order)
+    uxy = np.zeros((height, width), dtype=data_type, order=order)
 
     return ux, uy, uxx, uyy, uxy
 
-#@nb.guvectorize([(float64, int64, float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:])], '(),(),(m,n),(m,n),(m,n),(m,n),(m,n)->(m,n)', nopython=True, target='cuda')
 @nb.njit(parallel=True, fastmath=True)
 def run_math_complete(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
-    """Use to compare images in isolation (i.e. not on a video).
-
-    Parameters
-    ----------
-    cov_norm
-    data_range
-    ux
-    uy
-    uxx
-    uyy
-    uxy
-
-    Returns
-    -------
-    unknown
     """
+    Use to compare images in isolation (i.e. not on a video).
+    """
+
+    ux_squared = np.multiply(ux, ux)
+    uy_squared = np.multiply(uy, uy)
+    ux_uy = np.multiply(ux, uy)
+    sigma_x = np.multiply(cov_norm, (uxx - ux_squared))
+    sigma_xy = np.multiply(cov_norm, (uxy - ux_uy))
+    sigma_y = np.multiply(cov_norm, (uyy - uy_squared))
+
+    C1 = (0.01 * data_range) ** 2
+    C2 = (0.03 * data_range) ** 2
+
+#    print("rm", np.min(2 * ux_uy + C1), np.max(2 * ux_uy + C1))
+    A1 = 2 * ux_uy + C1
+    A2 = 2 * sigma_xy + C2
+    B1 = ux_squared + uy_squared + C1
+    B2 = sigma_x + sigma_y + C2
+
+    return (A1 * A2) / (B1 * B2)
+
+@nb.njit(parallel=True, fastmath=True)
+def run_math_complete_(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
+    """
+    Use to compare images in isolation (i.e. not on a video).
+    """
+
+    ux_squared = np.multiply(ux, ux)
+    uy_squared = np.multiply(uy, uy)
+    ux_uy = np.multiply(ux, uy)
+    sigma_x = np.multiply(cov_norm, (uxx - ux_squared))
+    sigma_xy = np.multiply(cov_norm, (uxy - ux_uy))
+    sigma_y = np.multiply(cov_norm, (uyy - uy_squared))
+
+    C1 = (0.01 * data_range) ** 2
+    C2 = (0.03 * data_range) ** 2
+
+#    print("rm", np.min(2 * ux_uy + C1), np.max(2 * ux_uy + C1))
+    A1 = 2 * ux_uy + C1
+    A2 = 2 * sigma_xy + C2
+    B1 = ux_squared + uy_squared + C1
+    B2 = sigma_x + sigma_y + C2
+
+    return np.multiply(A1, A2) / np.multiply(B1, B2)
+
+
+"""
+@nb.njit(parallel=True, fastmath=True)
+def run_math_complete_(cov_norm, data_range, real):
+    ux = real[0]
+    uxx = real[1]
+    uxy = real[2]
+    uy = real[3]
+    uyy = real[4]
+
     ux_squared = np.multiply(ux, ux)
     uy_squared = np.multiply(uy, uy)
     ux_uy = np.multiply(ux, uy)
@@ -86,6 +143,7 @@ def run_math_complete(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
     B2 = sigma_x + sigma_y + C2
 
     return (A1 * A2) / (B1 * B2)
+"""
 
 @nb.njit(parallel=True, fastmath=True)
 def run_math(cov_norm, data_range, ux, uy, uxx, sigma_y, uxy):
@@ -123,32 +181,20 @@ def run_math(cov_norm, data_range, ux, uy, uxx, sigma_y, uxy):
     return (A1 * A2) / (B1 * B2)
 
 @nb.njit(parallel=True, fastmath=True)
-def normalize_diff(diff, width, height):
-    """Standardize diff to range [0, 254].
-
-    Parameters
-    ----------
-    diff
-    width
-    height
-
-    Returns
-    -------
-    unknown
-    """
+def normalize_diff(diff, width, height, out):
     for x in nb.prange(height):
         for y in nb.prange(width):
             if diff[x][y] > 1:
-                diff[x][y] = 1
+                out[x][y] = 255
             elif diff[x][y] < 0:
-                diff[x][y] = 0
+                out[x][y] = 0
+            else:
+                out[x][y] = diff[x][y] * 255
 
-            diff[x][y] *= 255
-
-    diff = diff.astype("uint8")
-    return diff
+    out = out.astype("uint8")
 
 @nb.njit(parallel=True, fastmath=True)
+#@cc.export('corr1d_x', 'void(f4[:,:], f4[:], f4, f4, f4[:,:])')
 def correlate1d_x(rearr, weights, weight_size, height, output):
     """Applies weights to image in x direction.
 
@@ -166,8 +212,22 @@ def correlate1d_x(rearr, weights, weight_size, height, output):
     """
     for start in nb.prange(height):
         end = start+weight_size
-        new_arr = rearr[start:end].transpose()
-        np.dot(new_arr, weights, output[start])
+        new_arr = rearr[start:end].T
+        output[start] = np.dot(new_arr, weights)
+
+# about 0.5s / 7.5s total for a 100 frame run saved by using this one instead
+@nb.njit(parallel=True, fastmath=True)
+def correlate1d_x_(rearr, weights, weight_size, height, output):
+    for start in nb.prange(height):
+        end = start+weight_size
+        #print(rearr[start:end].shape)
+        np.dot(weights, rearr[start:end], output[start])
+
+@nb.njit(parallel=True, fastmath=True)
+def correlate1d_x__(rearr, weights, weight_size, height, output):
+    for start in nb.prange(height):
+        end = start+weight_size
+        output[:, start] = np.dot(weights, rearr[start:end])
 
 def correlate1d_y_wrap(matr, weights, weight_size, width, output, size1, size2):
     T = matr.transpose()
@@ -175,7 +235,6 @@ def correlate1d_y_wrap(matr, weights, weight_size, width, output, size1, size2):
     rearr = np.ascontiguousarray(rearr)
 
     correlate1d_y(rearr, weights, weight_size, width, output)
-
 
 @nb.njit(parallel=True, fastmath=True)
 def correlate1d_y(rearr, weights, weight_size, width, output):
@@ -189,10 +248,141 @@ def correlate1d_y(rearr, weights, weight_size, width, output):
     width
     output
 
-    Returns
-    -------
-    unknown
     """
+
     for start in nb.prange(width):
         end = start+weight_size
+        #print(rearr[start:end].shape)
+        #print(output[start].shape, np.dot(weights, rearr[start:end]).shape)
         np.dot(weights, rearr[start:end], output[start])
+
+@nb.njit(parallel=True, fastmath=True)
+def correlate1d_y__(rearr, weights, weight_size, width, output):
+    """Applies weights to image in y direction. For speed, the given image is expected to be transposed from
+
+    Parameters
+    ----------
+    rearr
+    weights
+    weight_size
+    width
+    output
+
+    """
+
+    for start in nb.prange(width):
+        end = start+weight_size
+        #print(rearr[start:end].shape)
+        #print(output[start].shape, np.dot(weights, rearr[start:end]).shape)
+        np.dot(weights, rearr[start:end], output[start])
+
+
+def fb_wrap_lock(lock, alpha, re, weights):
+    lock.acquire()
+    try:
+        a = dgemm(alpha, re, weights)
+    finally:
+        lock.release()
+        return a
+
+def fb_wrap(alpha, re, weights):
+    a = dgemm(alpha, re, weights, overwrite_c=True)
+    return a
+
+@nb.jit(forceobj=True)#parallel=True, fastmath=True)
+def correlate1d_y_(rearr, weights, weight_size, width):
+    """Applies weights to image in y direction. For speed, the given image is expected to be transposed from
+
+    Parameters
+    ----------
+    rearr
+    weights
+    weight_size
+    width
+    output
+
+    """
+
+    #result = map(fb_wrap, (1. for i in range(width)), (rearr[start:start + weight_size].T for start in range(width)),(weights for i in range(width)))
+    #return [*result]
+
+    #start = 0
+    #for r in result:
+        #print(r)
+    #    output[start] = np.reshape(r, output[start].shape)
+    #    start += 1
+    #print(output)
+
+
+    #pool = Pool(processes=width)
+
+    #with Pool(5) as p:
+    #    p.map(fb_wrap, [(1. for i in range(width)), (rearr[start:start+weight_size].T for start in range(width)), (weights for i in range(width)), (True for i in range(width))])
+
+    #lock = Lock()
+    #for start in range(width):
+    #    Process(target=fb_wrap, args=(lock, 1., rearr[start:start+weight_size].T, weights)).start()
+
+#    result = [*itertools.starmap(dgemm, [(1., rearr[start:start+weight_size].T, weights, True) for start in range(width)])]
+    #print(result)
+    #output = *result
+    #return
+    #return result
+    #output = np.array(list(result))
+
+    #output = np.array(list(result))
+    #print(output)
+    #print(result)
+    for start in range(width):
+        end = start+weight_size
+        #print(arr[start:end])
+        #np.dot(weights, rearr[start:end], output[start])
+        #print(rearr[start:end].shape, weights.shape)
+        scipy.linalg.blas.dgemm(alpha=1., a=rearr[start:end].T, b=weights)#, c=output[start])
+
+
+    #        output[start] = weights.dot(rearr[start:end])
+
+
+    #ax = [[weights.ndim - 1], [rearr[0:weight_size].ndim - 2]]
+
+    #results = pool.starmap(np.dot, [[weights, rearr[0:weights], output[0]], [weights, rearr[1:1+weights], output[1]], [weights, rearr[2:2+weights], output[2]]])
+    #print(results)
+#    pr = cProfile.Profile()
+#    pr.enable()
+
+
+    """
+    threads=[]
+    for start in range(width):
+        end = start+weight_size
+        #np.einsum('i,ik->k', weights, rearr[start:end], order='A', out=output[start], optimize=True)
+
+        #output[start] = np.tensordot(weights, rearr[start:end], ax)
+        #output[start] = dot2d(weights, rearr[start:end])
+#        np.dot(weights, rearr[start:end], output[start])
+#        async_result = pool.apply_async(np.dot, (weights, rearr[start:end], output[start]))
+
+#        if async_result.ready():
+#            print('done')
+        t = threading.Thread(target=np.dot, args=(weights, rearr[start:end], output[start]))
+        threads.append(t)
+
+        #print(output[start])
+
+    for t in threads:
+        t.start()
+
+    for t in threads:
+        t.join()
+    """
+
+#    pr.disable()
+#    s = io.StringIO()
+#    sortby = SortKey.CUMULATIVE
+#    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+#    ps.print_stats()
+#    print(s.getvalue())
+
+#if __name__ == "__main__":
+#    cc.compile()

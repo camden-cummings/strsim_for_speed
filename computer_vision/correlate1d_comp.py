@@ -7,6 +7,20 @@ import numpy as np
 
 @nb.njit(parallel=True, fastmath=True)
 def correlate1d_x(input, weights, output, width, height):
+    """
+
+    Parameters
+    ----------
+    input
+    weights
+    output
+    width
+    height
+
+    Returns
+    -------
+
+    """
     weight_size = len(weights)
     size1 = math.floor(weight_size / 2)
     size2 = weight_size - size1 - 1
@@ -28,6 +42,20 @@ def correlate1d_x(input, weights, output, width, height):
 #@nb.guvectorize([(float64[:,:], float64[:], float64, float64, float64[:, :])], "(m,n), (o), (), () -> (m,n)", fastmath=True, nopython=True)
 @nb.njit(parallel=True, fastmath=True)
 def correlate1d_y(input, weights, output, width, height):
+    """
+
+    Parameters
+    ----------
+    input
+    weights
+    output
+    width
+    height
+
+    Returns
+    -------
+
+    """
     weight_size = len(weights)
     size1 = math.floor(weight_size / 2)
     size2 = weight_size - size1 - 1

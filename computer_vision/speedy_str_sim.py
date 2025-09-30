@@ -11,7 +11,7 @@ from pstats import SortKey
 import copy
 import cv2
 
-from .structural_sim_from_scratch import (run_math_complete, run_math_complete_, normalize_diff, correlate1d_x_ as correlate1d_x, correlate1d_y, correlate1d_x__, correlate1d_y__)
+from .structural_sim_from_scratch import (run_math_complete, normalize_diff, correlate1d_x, correlate1d_y, correlate1d_x__)
 
 
 def run_correlate_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, uxy, uy_tmp, uy, uyy_tmp, uyy, size1,
@@ -20,7 +20,6 @@ def run_correlate_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp,
     update_corr_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, uxy, size1, size2, width, height, np_weights, weight_size)
 
 #    print("ux", np.min(ux), np.max(ux))
-
     bufferarr = run_math_complete(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
 
     S_t = bufferarr.T
@@ -42,7 +41,7 @@ def run_correlate_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp,
     #cv2.imshow('diff_contours', out_to_colour)
 
     contours = [c for c in contours if 10 < cv2.contourArea(c) < 300]
-    out_to_colour_constrained_centroids = cv2.cvtColor(out, cv2.COLOR_GRAY2BGR)
+#    out_to_colour_constrained_centroids = cv2.cvtColor(out, cv2.COLOR_GRAY2BGR)
     #cv2.drawContours(out_to_colour_constrained_centroids, contours, -1, (0, 0, 255), 1)
 #    cv2.imshow('diff_less_contours', out_to_colour_constrained_centroids)
 
@@ -54,9 +53,17 @@ def run_correlate_rearr_y__(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tm
                         size2, width, height, cov_norm, data_range, np_weights, weight_size, out):
     run_mode_rearr_y__(mode_img, uy_tmp, uy, uyy_tmp, uyy, size1, size2, width, height, np_weights, weight_size)
     update_corr_rearr_y__(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, uxy, size1, size2, width, height, np_weights, weight_size)
+#    print(ux, uy)
+#    cv2.imshow('ux', ux.astype("uint8"))
+#    cv2.imshow('uy', uy.astype("uint8"))
+#    cv2.imshow('uxy', (uxy / 100).astype("uint8"))
+#    cv2.imshow('uxx', (uxx / 100).astype("uint8"))
+#    cv2.imshow('uyy', (uyy / 100).astype("uint8"))
 
     #    print("ux", np.min(ux), np.max(ux))
     bufferarr = run_math_complete(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
+    #bufferarr = run_math_complete_(cov_norm, data_range, ux, uy, uxx, uyy, uxy)
+
     S_t = bufferarr.T
 
     normalize_diff(S_t, width, height, out)
@@ -74,6 +81,7 @@ def run_correlate_rearr_y__(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tm
 
     contours = [c for c in contours if 10 < cv2.contourArea(c) < 300]
     out_to_colour_constrained_centroids = cv2.cvtColor(out, cv2.COLOR_GRAY2BGR)
+    return contours
 
 def check_similarity(im1, im2, width, height):
     """
@@ -115,14 +123,14 @@ def run_mode_rearr_y__(mode_img, uy_tmp, uy, uyy_tmp, uyy, size1, size2, width, 
     correlate1d_x__(rearr, np_weights, weight_size, height, uy_tmp)
 
     rearr = np.concatenate((uy_tmp[0:size1][::-1], uy_tmp, uy_tmp[-size2:][::-1]), axis=0)
-    correlate1d_y__(rearr, np_weights, weight_size, width, uy)
+    correlate1d_y(rearr, np_weights, weight_size, width, uy)
 
     inp = mode_img * mode_img
     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
     correlate1d_x__(rearr, np_weights, weight_size, height, uyy_tmp)
 
     rearr = np.concatenate((uyy_tmp[0:size1][::-1], uyy_tmp, uyy_tmp[-size2:][::-1]), axis=0)
-    correlate1d_y__(rearr, np_weights, weight_size, width, uyy)
+    correlate1d_y(rearr, np_weights, weight_size, width, uyy)
 
 def update_corr_rearr_y(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp, uxy, size1, size2, width, height, np_weights, weight_size):
     rearr = np.concatenate((curr_img[0:size1][::-1], curr_img, curr_img[-size2:][::-1]))
@@ -153,18 +161,18 @@ def update_corr_rearr_y__(curr_img, mode_img, ux_tmp, ux, uxx_tmp, uxx, uxy_tmp,
     correlate1d_x__(rearr, np_weights, weight_size, height, ux_tmp)
 
     rearr = np.concatenate((ux_tmp[0:size1][::-1], ux_tmp, ux_tmp[-size2:][::-1]), axis=0)
-    correlate1d_y__(rearr, np_weights, weight_size, width, ux)
+    correlate1d_y(rearr, np_weights, weight_size, width, ux)
 
     inp = curr_img * curr_img
     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
     correlate1d_x__(rearr, np_weights, weight_size, height, uxx_tmp)
 
     rearr = np.concatenate((uxx_tmp[0:size1][::-1], uxx_tmp, uxx_tmp[-size2:][::-1]), axis=0)
-    correlate1d_y__(rearr, np_weights, weight_size, width, uxx)
+    correlate1d_y(rearr, np_weights, weight_size, width, uxx)
 
     inp = curr_img * mode_img
     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
     correlate1d_x__(rearr, np_weights, weight_size, height, uxy_tmp)
 
     rearr = np.concatenate((uxy_tmp[0:size1][::-1], uxy_tmp, uxy_tmp[-size2:][::-1]), axis=0)
-    correlate1d_y__(rearr, np_weights, weight_size, width, uxy)
+    correlate1d_y(rearr, np_weights, weight_size, width, uxy)

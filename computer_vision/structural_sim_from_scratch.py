@@ -3,23 +3,6 @@ import numba as nb
 import numpy as np
 import scipy.ndimage as ndi
 import scipy
-#from scipy.linalg.blas import dgemm
-from numba.pycc import CC
-
-import itertools
-#cc = CC('my_module')
-#cc.verbose = True
-from multiprocessing import Pool, Process, Lock
-
-import cProfile
-import io
-import math
-import os
-import pstats
-import time
-from pstats import SortKey
-import copy
-import threading
 
 def generate_weights(ndim=2, sigma=1.5, truncate=3.5):
     """Generates Gaussian weights based on given sigma and truncate.
@@ -78,6 +61,7 @@ def run_math_complete(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
     ux_squared = np.multiply(ux, ux)
     uy_squared = np.multiply(uy, uy)
     ux_uy = np.multiply(ux, uy)
+
     sigma_x = np.multiply(cov_norm, (uxx - ux_squared))
     sigma_xy = np.multiply(cov_norm, (uxy - ux_uy))
     sigma_y = np.multiply(cov_norm, (uyy - uy_squared))
@@ -115,35 +99,7 @@ def run_math_complete_(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
     B1 = ux_squared + uy_squared + C1
     B2 = sigma_x + sigma_y + C2
 
-    return np.multiply(A1, A2) / np.multiply(B1, B2)
-
-
-"""
-@nb.njit(parallel=True, fastmath=True)
-def run_math_complete_(cov_norm, data_range, real):
-    ux = real[0]
-    uxx = real[1]
-    uxy = real[2]
-    uy = real[3]
-    uyy = real[4]
-
-    ux_squared = np.multiply(ux, ux)
-    uy_squared = np.multiply(uy, uy)
-    ux_uy = np.multiply(ux, uy)
-    sigma_x = np.multiply(cov_norm, (uxx - ux_squared))
-    sigma_xy = np.multiply(cov_norm, (uxy - ux_uy))
-    sigma_y = np.multiply(cov_norm, (uyy - uy_squared))
-
-    C1 = (0.01 * data_range) ** 2
-    C2 = (0.03 * data_range) ** 2
-
-    A1 = 2 * ux_uy + C1
-    A2 = 2 * sigma_xy + C2
-    B1 = ux_squared + uy_squared + C1
-    B2 = sigma_x + sigma_y + C2
-
     return (A1 * A2) / (B1 * B2)
-"""
 
 @nb.njit(parallel=True, fastmath=True)
 def run_math(cov_norm, data_range, ux, uy, uxx, sigma_y, uxy):
@@ -194,7 +150,6 @@ def normalize_diff(diff, width, height, out):
     out = out.astype("uint8")
 
 @nb.njit(parallel=True, fastmath=True)
-#@cc.export('corr1d_x', 'void(f4[:,:], f4[:], f4, f4, f4[:,:])')
 def correlate1d_x(rearr, weights, weight_size, height, output):
     """Applies weights to image in x direction.
 
@@ -212,15 +167,6 @@ def correlate1d_x(rearr, weights, weight_size, height, output):
     """
     for start in nb.prange(height):
         end = start+weight_size
-        new_arr = rearr[start:end].T
-        output[start] = np.dot(new_arr, weights)
-
-# about 0.5s / 7.5s total for a 100 frame run saved by using this one instead
-@nb.njit(parallel=True, fastmath=True)
-def correlate1d_x_(rearr, weights, weight_size, height, output):
-    for start in nb.prange(height):
-        end = start+weight_size
-        #print(rearr[start:end].shape)
         np.dot(weights, rearr[start:end], output[start])
 
 @nb.njit(parallel=True, fastmath=True)
@@ -255,39 +201,6 @@ def correlate1d_y(rearr, weights, weight_size, width, output):
         #print(rearr[start:end].shape)
         #print(output[start].shape, np.dot(weights, rearr[start:end]).shape)
         np.dot(weights, rearr[start:end], output[start])
-
-@nb.njit(parallel=True, fastmath=True)
-def correlate1d_y__(rearr, weights, weight_size, width, output):
-    """Applies weights to image in y direction. For speed, the given image is expected to be transposed from
-
-    Parameters
-    ----------
-    rearr
-    weights
-    weight_size
-    width
-    output
-
-    """
-
-    for start in nb.prange(width):
-        end = start+weight_size
-        #print(rearr[start:end].shape)
-        #print(output[start].shape, np.dot(weights, rearr[start:end]).shape)
-        np.dot(weights, rearr[start:end], output[start])
-
-
-def fb_wrap_lock(lock, alpha, re, weights):
-    lock.acquire()
-    try:
-        a = dgemm(alpha, re, weights)
-    finally:
-        lock.release()
-        return a
-
-def fb_wrap(alpha, re, weights):
-    a = dgemm(alpha, re, weights, overwrite_c=True)
-    return a
 
 @nb.jit(forceobj=True)#parallel=True, fastmath=True)
 def correlate1d_y_(rearr, weights, weight_size, width):
@@ -348,9 +261,6 @@ def correlate1d_y_(rearr, weights, weight_size, width):
 
     #results = pool.starmap(np.dot, [[weights, rearr[0:weights], output[0]], [weights, rearr[1:1+weights], output[1]], [weights, rearr[2:2+weights], output[2]]])
     #print(results)
-#    pr = cProfile.Profile()
-#    pr.enable()
-
 
     """
     threads=[]
@@ -376,13 +286,3 @@ def correlate1d_y_(rearr, weights, weight_size, width):
     for t in threads:
         t.join()
     """
-
-#    pr.disable()
-#    s = io.StringIO()
-#    sortby = SortKey.CUMULATIVE
-#    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-#    ps.print_stats()
-#    print(s.getvalue())
-
-#if __name__ == "__main__":
-#    cc.compile()

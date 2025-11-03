@@ -149,41 +149,22 @@ def normalize_diff(diff, width, height, out):
 
     out = out.astype("uint8")
 
-@nb.njit(parallel=True, fastmath=True)
-def correlate1d_x(rearr, weights, weight_size, height, output):
-    """Applies weights to image in x direction.
+def correlate1d_x(inp, size1, size2, np_weights, weight_size, height, out):
+    rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
+    __correlate1d_x(rearr, np_weights, weight_size, height, out)
 
-    Parameters
-    ----------
-    rearr
-    weights
-    weight_size
-    output
-    height
-
-    Returns
-    -------
-    unknown
-    """
-    for start in nb.prange(height):
-        end = start+weight_size
-        np.dot(weights, rearr[start:end], output[start])
+def correlate1d_y(inp, size1, size2, np_weights, weight_size, width, out):
+    rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
+    __correlate1d_y(rearr, np_weights, weight_size, width, out)
 
 @nb.njit(parallel=True, fastmath=True)
-def correlate1d_x__(rearr, weights, weight_size, height, output):
+def __correlate1d_x(rearr, weights, weight_size, height, output):
     for start in nb.prange(height):
         end = start+weight_size
         output[:, start] = np.dot(weights, rearr[start:end])
 
-def correlate1d_y_wrap(matr, weights, weight_size, width, output, size1, size2):
-    T = matr.transpose()
-    rearr = np.concatenate((T[0:size1][::-1], T, T[-size2:][::-1]), axis=0)
-    rearr = np.ascontiguousarray(rearr)
-
-    correlate1d_y(rearr, weights, weight_size, width, output)
-
 @nb.njit(parallel=True, fastmath=True)
-def correlate1d_y(rearr, weights, weight_size, width, output):
+def __correlate1d_y(rearr, weights, weight_size, width, output):
     """Applies weights to image in y direction. For speed, the given image is expected to be transposed from
 
     Parameters
@@ -198,91 +179,4 @@ def correlate1d_y(rearr, weights, weight_size, width, output):
 
     for start in nb.prange(width):
         end = start+weight_size
-        #print(rearr[start:end].shape)
-        #print(output[start].shape, np.dot(weights, rearr[start:end]).shape)
         np.dot(weights, rearr[start:end], output[start])
-
-@nb.jit(forceobj=True)#parallel=True, fastmath=True)
-def correlate1d_y_(rearr, weights, weight_size, width):
-    """Applies weights to image in y direction. For speed, the given image is expected to be transposed from
-
-    Parameters
-    ----------
-    rearr
-    weights
-    weight_size
-    width
-    output
-
-    """
-
-    #result = map(fb_wrap, (1. for i in range(width)), (rearr[start:start + weight_size].T for start in range(width)),(weights for i in range(width)))
-    #return [*result]
-
-    #start = 0
-    #for r in result:
-        #print(r)
-    #    output[start] = np.reshape(r, output[start].shape)
-    #    start += 1
-    #print(output)
-
-
-    #pool = Pool(processes=width)
-
-    #with Pool(5) as p:
-    #    p.map(fb_wrap, [(1. for i in range(width)), (rearr[start:start+weight_size].T for start in range(width)), (weights for i in range(width)), (True for i in range(width))])
-
-    #lock = Lock()
-    #for start in range(width):
-    #    Process(target=fb_wrap, args=(lock, 1., rearr[start:start+weight_size].T, weights)).start()
-
-#    result = [*itertools.starmap(dgemm, [(1., rearr[start:start+weight_size].T, weights, True) for start in range(width)])]
-    #print(result)
-    #output = *result
-    #return
-    #return result
-    #output = np.array(list(result))
-
-    #output = np.array(list(result))
-    #print(output)
-    #print(result)
-    for start in range(width):
-        end = start+weight_size
-        #print(arr[start:end])
-        #np.dot(weights, rearr[start:end], output[start])
-        #print(rearr[start:end].shape, weights.shape)
-        scipy.linalg.blas.dgemm(alpha=1., a=rearr[start:end].T, b=weights)#, c=output[start])
-
-
-    #        output[start] = weights.dot(rearr[start:end])
-
-
-    #ax = [[weights.ndim - 1], [rearr[0:weight_size].ndim - 2]]
-
-    #results = pool.starmap(np.dot, [[weights, rearr[0:weights], output[0]], [weights, rearr[1:1+weights], output[1]], [weights, rearr[2:2+weights], output[2]]])
-    #print(results)
-
-    """
-    threads=[]
-    for start in range(width):
-        end = start+weight_size
-        #np.einsum('i,ik->k', weights, rearr[start:end], order='A', out=output[start], optimize=True)
-
-        #output[start] = np.tensordot(weights, rearr[start:end], ax)
-        #output[start] = dot2d(weights, rearr[start:end])
-#        np.dot(weights, rearr[start:end], output[start])
-#        async_result = pool.apply_async(np.dot, (weights, rearr[start:end], output[start]))
-
-#        if async_result.ready():
-#            print('done')
-        t = threading.Thread(target=np.dot, args=(weights, rearr[start:end], output[start]))
-        threads.append(t)
-
-        #print(output[start])
-
-    for t in threads:
-        t.start()
-
-    for t in threads:
-        t.join()
-    """

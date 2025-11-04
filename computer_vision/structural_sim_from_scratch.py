@@ -127,20 +127,20 @@ def normalize_diff(diff, width, height, out):
 
 def correlate1d_x(inp, size1, size2, np_weights, weight_size, height, out):
     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
-    __correlate1d_x(rearr, np_weights, weight_size, height, out)
+    nb_correlate1d_x(rearr, np_weights, weight_size, height, out)
 
 def correlate1d_y(inp, size1, size2, np_weights, weight_size, width, out):
     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
-    __correlate1d_y(rearr, np_weights, weight_size, width, out)
+    nb_correlate1d_y(rearr, np_weights, weight_size, width, out)
 
 @nb.njit(parallel=True, fastmath=True)
-def __correlate1d_x(rearr, weights, weight_size, height, output):
+def nb_correlate1d_x(rearr, weights, weight_size, height, output):
     for start in nb.prange(height):
         end = start+weight_size
         output[:, start] = np.dot(weights, rearr[start:end])
 
 @nb.njit(parallel=True, fastmath=True)
-def __correlate1d_y(rearr, weights, weight_size, width, output):
+def nb_correlate1d_y(rearr, weights, weight_size, width, output):
     """Applies weights to image in y direction. For speed, the given image is expected to be transposed from
 
     Parameters

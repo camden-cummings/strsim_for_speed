@@ -1,9 +1,9 @@
-from .structural_sim_from_scratch import setup, generate_weights, run_math_complete, normalize_diff, correlate1d_x, correlate1d_y
+from .structural_sim_from_scratch import setup, generate_weights, run_math_complete, normalize_diff, nb_correlate1d_x, nb_correlate1d_y
 from .speedy_str_sim import run_mode_rearr_y, update_corr_rearr_y
 import numpy as np
 import math
 
-class Speedster:
+class SpeedyCV:
     def __init__(self, frame_height, frame_width, sigma=1.5, truncate=3.5, data_range=255):
         self.frame_height = frame_height
         self.frame_width = frame_width
@@ -33,3 +33,45 @@ class Speedster:
         self.size1 = math.floor(self.weight_size / 2)
         self.size2 = self.weight_size - self.size1 - 1
         self.np_weights = np.array(weights, dtype=np.float32, order='C')
+    
+    def correlate1d_x(self, inp, out):
+        rearr = np.concatenate((inp[0:self.size1][::-1], inp, inp[-self.size2:][::-1]))
+        nb_correlate1d_x(rearr, self.np_weights, self.weight_size, self.frame_height, out)
+    
+    def correlate1d_y(self, inp, out):
+        rearr = np.concatenate((inp[0:self.size1][::-1], inp, inp[-self.size2:][::-1]))
+        nb_correlate1d_y(rearr, self.np_weights, self.weight_size, self.frame_width, out)
+
+    def run_corr(self, curr_img):
+        #run_mode_rearr_y(curr_img, self.ux_tmp, self.ux, self.uxx_tmp, self.uxx, self.size1, self.size2, self.frame_width, self.frame_height, self.np_weights, self.weight_size)
+    
+        self.correlate1d_x(curr_img, self.ux_tmp)
+        self.correlate1d_y(self.ux_tmp, self.ux)
+    
+        inp = np.multiply(curr_img, curr_img)
+        self.correlate1d_x(inp, self.uxx_tmp)
+        self.correlate1d_y(self.uxx_tmp, self.uxx)
+    
+    def run_mode(self, mode_img):
+        #run_mode_rearr_y(mode_img, self.uy_tmp, self.uy, self.uyy_tmp, self.uyy, self.size1, self.size2, self.frame_width, self.frame_height, self.np_weights, self.weight_size)
+        
+        self.correlate1d_x(mode_img, self.uy_tmp)
+        self.correlate1d_y(self.uy_tmp, self.uy)
+    
+        inp = np.multiply(mode_img, mode_img)
+        self.correlate1d_x(inp, self.uyy_tmp)
+        self.correlate1d_y(self.uyy_tmp, self.uyy)
+        
+    def run_against(self, img1, img2):
+        inp = np.multiply(img1, img2)
+        self.correlate1d_x(inp, self.uxy_tmp)
+        self.correlate1d_y(self.uxy_tmp, self.uxy)
+
+    def update_corr(self, mode_img, curr_img):
+        update_corr_rearr_y(curr_img, mode_img, self.ux_tmp, self.ux, self.uxx_tmp, self.uxx, self.uxy_tmp, self.uxy, self.size1, self.size2, self.frame_width, self.frame_height,
+                            self.np_weights, self.weight_size)
+
+    def calc_out_from_existing_arrays(self):
+        bufferarr = run_math_complete(self.cov_norm, self.data_range, self.ux, self.uy, self.uxx, self.uyy, self.uxy)
+        S_t = bufferarr.T
+        normalize_diff(S_t, self.frame_width, self.frame_height, self.out)

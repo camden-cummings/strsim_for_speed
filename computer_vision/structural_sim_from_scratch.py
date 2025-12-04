@@ -2,7 +2,7 @@
 import numba as nb
 import numpy as np
 import scipy.ndimage as ndi
-import scipy
+
 
 def generate_weights(ndim=2, sigma=1.5, truncate=3.5):
     """Generates Gaussian weights based on given sigma and truncate.
@@ -22,12 +22,13 @@ def generate_weights(ndim=2, sigma=1.5, truncate=3.5):
     weights = ndi._filters._gaussian_kernel1d(sigma, 0, radius)[::-1]
 
     window_size = 2 * radius + 1
-    NP = window_size**ndim
+    NP = window_size ** ndim
     cov_norm = NP / (NP - 1)  # sample covariance
 
     return weights, cov_norm
 
-def setup(width, height, order, data_type):
+
+def setup(width, height, order, data_type=np.float32):
     """Declares spaces for ux, uy, uxx, uyy & uxy.
 
     Parameters
@@ -39,6 +40,8 @@ def setup(width, height, order, data_type):
     order
         Array can be in C major or F major - depending on what
         operations are performed, one or the other may be faster.
+    data_type
+        Data type to be used for array.
 
     Returns
     -------
@@ -51,6 +54,7 @@ def setup(width, height, order, data_type):
     uxy = np.zeros((height, width), dtype=data_type, order=order)
 
     return ux, uy, uxx, uyy, uxy
+
 
 @nb.njit(parallel=True, fastmath=True)
 def run_math_complete(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
@@ -69,13 +73,14 @@ def run_math_complete(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
     C1 = (0.01 * data_range) ** 2
     C2 = (0.03 * data_range) ** 2
 
-#    print("rm", np.min(2 * ux_uy + C1), np.max(2 * ux_uy + C1))
+    #    print("rm", np.min(2 * ux_uy + C1), np.max(2 * ux_uy + C1))
     A1 = 2 * ux_uy + C1
     A2 = 2 * sigma_xy + C2
     B1 = ux_squared + uy_squared + C1
     B2 = sigma_x + sigma_y + C2
 
     return (A1 * A2) / (B1 * B2)
+
 
 @nb.njit(parallel=True, fastmath=True)
 def run_math_complete_(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
@@ -93,13 +98,14 @@ def run_math_complete_(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
     C1 = (0.01 * data_range) ** 2
     C2 = (0.03 * data_range) ** 2
 
-#    print("rm", np.min(2 * ux_uy + C1), np.max(2 * ux_uy + C1))
+    #    print("rm", np.min(2 * ux_uy + C1), np.max(2 * ux_uy + C1))
     A1 = 2 * ux_uy + C1
     A2 = 2 * sigma_xy + C2
     B1 = ux_squared + uy_squared + C1
     B2 = sigma_x + sigma_y + C2
 
     return (A1 * A2) / (B1 * B2)
+
 
 @nb.njit(parallel=True, fastmath=True)
 def run_math(cov_norm, data_range, ux, uy, uxx, sigma_y, uxy):
@@ -123,18 +129,19 @@ def run_math(cov_norm, data_range, ux, uy, uxx, sigma_y, uxy):
     ux_squared = np.multiply(ux, ux)
     uy_squared = np.multiply(uy, uy)
     ux_uy = np.multiply(ux, uy)
-    sigma_x = np.multiply(cov_norm, (uxx-ux_squared))
+    sigma_x = np.multiply(cov_norm, (uxx - ux_squared))
     sigma_xy = np.multiply(cov_norm, (uxy - ux_uy))
 
     C1 = (0.01 * data_range) ** 2
     C2 = (0.03 * data_range) ** 2
 
-    A1 = np.multiply(ux_uy,2) + C1
-    A2 = np.multiply(sigma_xy,2) + C2
+    A1 = np.multiply(ux_uy, 2) + C1
+    A2 = np.multiply(sigma_xy, 2) + C2
     B1 = ux_squared + uy_squared + C1
     B2 = sigma_x + sigma_y + C2
 
     return (A1 * A2) / (B1 * B2)
+
 
 @nb.njit(parallel=True, fastmath=True)
 def normalize_diff(diff, width, height, out):
@@ -149,19 +156,23 @@ def normalize_diff(diff, width, height, out):
 
     out = out.astype("uint8")
 
+
 def correlate1d_x(inp, size1, size2, np_weights, weight_size, height, out):
     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
     __correlate1d_x(rearr, np_weights, weight_size, height, out)
+
 
 def correlate1d_y(inp, size1, size2, np_weights, weight_size, width, out):
     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
     __correlate1d_y(rearr, np_weights, weight_size, width, out)
 
+
 @nb.njit(parallel=True, fastmath=True)
 def __correlate1d_x(rearr, weights, weight_size, height, output):
     for start in nb.prange(height):
-        end = start+weight_size
+        end = start + weight_size
         output[:, start] = np.dot(weights, rearr[start:end])
+
 
 @nb.njit(parallel=True, fastmath=True)
 def __correlate1d_y(rearr, weights, weight_size, width, output):
@@ -178,5 +189,5 @@ def __correlate1d_y(rearr, weights, weight_size, width, output):
     """
 
     for start in nb.prange(width):
-        end = start+weight_size
+        end = start + weight_size
         np.dot(weights, rearr[start:end], output[start])

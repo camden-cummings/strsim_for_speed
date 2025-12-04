@@ -1,16 +1,4 @@
-import time
-
 import numpy as np
-import cProfile
-import io
-import math
-import os
-import pstats
-import time
-from pstats import SortKey
-import copy
-import cv2
-
 from .structural_sim_from_scratch import (run_math_complete, normalize_diff, correlate1d_x, correlate1d_y)
 
 

@@ -10,12 +10,16 @@ def calc_mode(deq: np.ndarray, frame_height: int, frame_width: int):  # *
     image.
     """
     mode_img = np.zeros([frame_height, frame_width])
+    
+    print(mode_img)
+    
+    # what is happening here
+    #for j, _ in enumerate(mode_img[:, 0]):
+    #    mode_img[j, :] = mode(np.array([x[j, :] for x in deq]))[0]
 
-    for j, _ in enumerate(mode_img[:, 0]):
-        mode_img[j, :] = mode(np.array([x[j, :] for x in deq]))[0]
-
-    mode_img, _ = np.array(mode(deq, axis=0), dtype=np.uint8)
-
+    mode_img, _ = np.array(mode(deq, axis=0, keepdims=False), dtype=np.uint8)
+    print(mode_img, mode_img.shape)
+    
     return mode_img
 
 

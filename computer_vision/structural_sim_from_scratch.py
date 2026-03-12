@@ -28,7 +28,7 @@ def generate_weights(ndim=2, sigma=1.5, truncate=3.5):
     return weights, cov_norm
 
 
-def setup(width, height, order, data_type=np.float32):
+def setup(height, width, order, data_type=np.float32):
     """Declares spaces for ux, uy, uxx, uyy & uxy.
 
     Parameters
@@ -47,11 +47,11 @@ def setup(width, height, order, data_type=np.float32):
     -------
     unknown
     """
-    ux = np.zeros((height, width), dtype=data_type, order=order)
-    uy = np.zeros((height, width), dtype=data_type, order=order)
-    uxx = np.zeros((height, width), dtype=data_type, order=order)
-    uyy = np.zeros((height, width), dtype=data_type, order=order)
-    uxy = np.zeros((height, width), dtype=data_type, order=order)
+    ux = np.zeros((width, height), dtype=data_type, order=order)
+    uy = np.zeros((width, height), dtype=data_type, order=order)
+    uxx = np.zeros((width, height), dtype=data_type, order=order)
+    uyy = np.zeros((width, height), dtype=data_type, order=order)
+    uxy = np.zeros((width, height), dtype=data_type, order=order)
 
     return ux, uy, uxx, uyy, uxy
 

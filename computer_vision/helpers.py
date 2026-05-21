@@ -5,32 +5,24 @@ import numpy as np
 from scipy.stats import mode
 
 
-def calc_mode(deq: np.ndarray, frame_height: int, frame_width: int):  # *
+def calc_mode(deq: np.ndarray, frame_height: int, frame_width: int):
     """Finds a mode image based on a given array of images, effectively creating a background
     image.
     """
-    mode_img = np.zeros([frame_height, frame_width])
     
-    print(mode_img)
-    
-    # what is happening here
-    #for j, _ in enumerate(mode_img[:, 0]):
-    #    mode_img[j, :] = mode(np.array([x[j, :] for x in deq]))[0]
-
     mode_img, _ = np.array(mode(deq, axis=0, keepdims=False), dtype=np.uint8)
-    print(mode_img, mode_img.shape)
     
     return mode_img
 
 
-def calc_mode_img(vidcap, frame_width: int, frame_height: int, filename: str, blur: bool):  # *
+def calc_mode_img(vidcap, frame_width: int, frame_height: int, filename: str, blur: bool, sections=50):
     """Calculates mode image based on all images in video, creating a version of the image with."""
     moviedeq = []
     cont, frame = vidcap.read()
     curr_frame = 0
 
     while cont:
-        curr_frame += int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT) / 50)
+        curr_frame += int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT) / sections)
 
         vidcap.set(cv2.CAP_PROP_POS_FRAMES, curr_frame)
 

@@ -10,7 +10,7 @@ def generate_weights(ndim=2, sigma=1.5, truncate=3.5):
     Parameters
     ----------
     ndim
-        Dimension of image.
+        Dimension of image, i.e. a 2D image will be ndim=2.
     sigma
     truncate
 
@@ -18,17 +18,19 @@ def generate_weights(ndim=2, sigma=1.5, truncate=3.5):
     -------
     unknown
     """
+    
     radius = int(truncate * sigma + 0.5)  # radius as in ndimage
-    weights = ndi._filters._gaussian_kernel1d(sigma, 0, radius)[::-1]
+    weights = np.array(ndi._filters._gaussian_kernel1d(sigma, 0, radius)[::-1], np.float32)
 
     window_size = 2 * radius + 1
     NP = window_size ** ndim
+    
     cov_norm = NP / (NP - 1)  # sample covariance
 
     return weights, cov_norm
 
 
-def setup(width, height, order, data_type=np.float32):
+def setup(height, width, order, data_type=np.float32):
     """Declares spaces for ux, uy, uxx, uyy & uxy.
 
     Parameters
@@ -47,11 +49,11 @@ def setup(width, height, order, data_type=np.float32):
     -------
     unknown
     """
-    ux = np.zeros((height, width), dtype=data_type, order=order)
-    uy = np.zeros((height, width), dtype=data_type, order=order)
-    uxx = np.zeros((height, width), dtype=data_type, order=order)
-    uyy = np.zeros((height, width), dtype=data_type, order=order)
-    uxy = np.zeros((height, width), dtype=data_type, order=order)
+    ux = np.zeros((width, height), dtype=data_type, order=order)
+    uy = np.zeros((width, height), dtype=data_type, order=order)
+    uxx = np.zeros((width, height), dtype=data_type, order=order)
+    uyy = np.zeros((width, height), dtype=data_type, order=order)
+    uxy = np.zeros((width, height), dtype=data_type, order=order)
 
     return ux, uy, uxx, uyy, uxy
 
@@ -73,7 +75,6 @@ def run_math_complete(cov_norm, data_range, ux, uy, uxx, uyy, uxy):
     C1 = (0.01 * data_range) ** 2
     C2 = (0.03 * data_range) ** 2
 
-    #    print("rm", np.min(2 * ux_uy + C1), np.max(2 * ux_uy + C1))
     A1 = 2 * ux_uy + C1
     A2 = 2 * sigma_xy + C2
     B1 = ux_squared + uy_squared + C1
@@ -140,6 +141,12 @@ def correlate1d_y(inp, size1, size2, np_weights, weight_size, width, out):
     rearr = np.concatenate((inp[0:size1][::-1], inp, inp[-size2:][::-1]))
     nb_correlate1d_y(rearr, np_weights, weight_size, width, out)
 
+#@nb.njit()
+def feed_rearr(inp, rearr, width, size1, size2):
+    rearr[0:size1] = inp[0:size1][::-1]
+    rearr[size1:size1+width] = inp
+    rearr[-size2:] = inp[-size2:][::-1]
+    
 
 @nb.njit(parallel=True, fastmath=True)
 def nb_correlate1d_x(rearr, weights, weight_size, height, output):

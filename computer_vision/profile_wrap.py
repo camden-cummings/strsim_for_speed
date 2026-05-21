@@ -6,6 +6,9 @@ import numpy as np
 import time
 
 def profilefunc(func, num_of_tests, *args, **kwargs):
+    # run once to compile
+    func(*args, **kwargs)
+        
     pr = start_profiler()
     start_time = time.time()
 
